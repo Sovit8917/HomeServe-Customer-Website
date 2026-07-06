@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #f0f7ff;
+  --color-brand-100: #e0efff;
+  --color-brand-200: #b9ddff;
+  --color-brand-300: #7cc0ff;
+  --color-brand-400: #36a0ff;
+  --color-brand-500: #0b7de8;
+  --color-brand-600: #0060c5;
+  --color-brand-700: #004d9e;
+  --color-brand-800: #033e7c;
+  --color-brand-900: #083567;
+
+  --color-accent-50: #fff7ed;
+  --color-accent-100: #ffedd5;
+  --color-accent-200: #fed7aa;
+  --color-accent-300: #fdba74;
+  --color-accent-400: #fb923c;
+  --color-accent-500: #f97316;
+  --color-accent-600: #ea580c;
+
+  --color-surface: #f8fafc;
+  --color-muted: #64748b;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', sans-serif;
+
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+
+  --shadow-card: 0 1px 3px 0 rgba(0,0,0,0.07), 0 1px 2px -1px rgba(0,0,0,0.07);
+  --shadow-card-hover: 0 4px 16px 0 rgba(0,0,0,0.10), 0 1px 4px -1px rgba(0,0,0,0.08);
+  --shadow-brand: 0 4px 14px 0 rgba(11,125,232,0.25);
+}
+
+@layer base {
+  body { @apply bg-surface text-slate-800 font-sans antialiased; }
+  h1, h2, h3 { @apply font-display; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white font-semibold rounded-xl px-5 py-2.5 transition-all duration-150 shadow-brand hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-white border border-slate-200 hover:border-brand-300 hover:bg-brand-50 text-slate-700 font-semibold rounded-xl px-5 py-2.5 transition-all duration-150;
+  }
+  .btn-outline {
+    @apply border-2 border-brand-500 text-brand-500 hover:bg-brand-50 font-semibold rounded-xl px-5 py-2.5 transition-all duration-150;
+  }
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden;
+  }
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 bg-white text-slate-800 placeholder:text-slate-400 transition-all;
+  }
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .section-title {
+    @apply text-xl font-display font-bold text-slate-900;
+  }
+}
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

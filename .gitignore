@@ -1,0 +1,72 @@
+# compiled output
+/dist
+/node_modules
+/build
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+/coverage
+/.nyc_output
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Prisma
+/prisma/migrations/dev
+*.db
+*.db-journal
+
+# Package managers
+package-lock.json.bak
+.pnpm-store/
+
+# Yarn
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Temp / uploads
+/tmp
+/uploads
+*.tmp
+
+# TypeScript build info
+*.tsbuildinfo
+
+
+node_modules
+.next
+out
+.env*
+.DS_Store
+*.tsbuildinfo
