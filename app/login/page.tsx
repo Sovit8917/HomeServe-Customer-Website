@@ -163,6 +163,10 @@ function LoginContent() {
         <p className="text-center text-xs text-slate-400 mt-6">
           By continuing, you agree to our <a href="/terms" className="underline">Terms</a> and <a href="/privacy" className="underline">Privacy Policy</a>.
         </p>
+        <p className="text-center text-sm text-gray-500 mt-4">
+            Want to become a worker?{' '}
+            <a href="https://homeserve-worker-f.onrender.com" className="text-blue-600 font-semibold hover:underline">Worker App →</a>
+          </p>
       </div>
     </div>
   );
