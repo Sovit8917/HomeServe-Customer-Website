@@ -3,20 +3,91 @@ import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
+import { signIn, signUp } from '@/lib/auth-client';
 import toast from 'react-hot-toast';
-import { Phone, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Phone, ShieldCheck, ArrowLeft, Mail, Lock } from 'lucide-react';
 
 function LoginContent() {
+  const [mode, setMode] = useState<'phone' | 'email'>('phone');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [emailForm, setEmailForm] = useState({ email: '', password: '', name: '' });
+  const [emailMode, setEmailMode] = useState<'signin' | 'signup'>('signin');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
   const user = useAuthStore((s) => s.user);
+
+  // After Better Auth confirms a session (Google or email/password), swap
+  // it for a NestJS JWT via the bridge route so the rest of the site
+  // keeps working exactly like the phone-OTP flow (same setAuth call).
+  const completeWithBackendToken = async () => {
+    const res = await fetch('/api/auth/backend-token', { method: 'POST' });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body?.message || 'Could not complete sign-in');
+    const { user, token } = body.data;
+    setAuth(user, token);
+    return { user, isNew: false };
+  };
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    try {
+      await signIn.social({
+        provider: 'google',
+        callbackURL: `/login/complete${
+          searchParams.get('next') ? `?next=${encodeURIComponent(searchParams.get('next')!)}` : ''
+        }`,
+      });
+      // signIn.social redirects the browser to Google — code after this
+      // line won't run for this request.
+    } catch (err: any) {
+      toast.error(err?.message || 'Google sign-in failed');
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailForm.email || !emailForm.password) {
+      return toast.error('Enter your email and password');
+    }
+    setLoading(true);
+    try {
+      if (emailMode === 'signup') {
+        if (!emailForm.name.trim()) {
+          setLoading(false);
+          return toast.error('Enter your name');
+        }
+        const { error } = await signUp.email({
+          email: emailForm.email,
+          password: emailForm.password,
+          name: emailForm.name,
+        });
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await signIn.email({
+          email: emailForm.email,
+          password: emailForm.password,
+        });
+        if (error) throw new Error(error.message);
+      }
+
+      const { user: loggedInUser } = await completeWithBackendToken();
+      toast.success(`Welcome${loggedInUser.name ? `, ${loggedInUser.name}` : ''}!`);
+      const next = searchParams.get('next');
+      router.push(next && next !== '/login' ? next : '/');
+    } catch (err: any) {
+      toast.error(err?.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Covers the case where zustand rehydrates a still-valid session on this
   // very page (e.g. an older session that predates cookie-based middleware
@@ -94,7 +165,109 @@ function LoginContent() {
             <span className="text-white text-sm font-bold">HS</span>
           </div>
 
-          {step === 'phone' ? (
+          {/* Google — always visible regardless of mode */}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={googleLoading}
+            className="w-full flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors mb-4 disabled:opacity-60"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z" />
+              <path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.1-4 1.1-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1C3.4 21.3 7.4 24 12 24z" />
+              <path fill="#FBBC05" d="M5.4 14.3c-.2-.7-.4-1.5-.4-2.3s.1-1.6.4-2.3V6.6H1.4C.5 8.3 0 10.1 0 12s.5 3.7 1.4 5.4l4-3.1z" />
+              <path fill="#EA4335" d="M12 4.8c1.7 0 3.3.6 4.5 1.8l3.4-3.4C17.9 1.2 15.2 0 12 0 7.4 0 3.4 2.7 1.4 6.6l4 3.1C6.3 6.9 8.9 4.8 12 4.8z" />
+            </svg>
+            {googleLoading ? 'Redirecting...' : 'Continue with Google'}
+          </button>
+
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-px bg-slate-200 flex-1" />
+            <span className="text-xs text-slate-400">or</span>
+            <div className="h-px bg-slate-200 flex-1" />
+          </div>
+
+          <div className="flex gap-1 bg-slate-100 rounded-lg p-1 mb-6">
+            <button
+              type="button"
+              onClick={() => setMode('phone')}
+              className={`flex-1 text-sm font-medium rounded-md py-1.5 transition-colors ${mode === 'phone' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+            >
+              Phone OTP
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('email')}
+              className={`flex-1 text-sm font-medium rounded-md py-1.5 transition-colors ${mode === 'email' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+            >
+              Email
+            </button>
+          </div>
+
+          {mode === 'email' ? (
+            <>
+              <h1 className="font-display text-2xl font-bold text-slate-900 mb-1">
+                {emailMode === 'signup' ? 'Create account' : 'Welcome back'}
+              </h1>
+              <p className="text-sm text-slate-500 mb-6">
+                {emailMode === 'signup' ? 'Sign up with your email to continue.' : 'Sign in with your email to continue.'}
+              </p>
+              <form onSubmit={handleEmailAuth} className="space-y-4">
+                {emailMode === 'signup' && (
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 mb-1.5 block">Full name</label>
+                    <input
+                      type="text"
+                      value={emailForm.name}
+                      onChange={(e) => setEmailForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="Jane Doe"
+                      className="input-field"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-1.5 block">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      type="email"
+                      value={emailForm.email}
+                      onChange={(e) => setEmailForm((f) => ({ ...f, email: e.target.value }))}
+                      placeholder="you@example.com"
+                      className="input-field pl-10"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-1.5 block">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      type="password"
+                      value={emailForm.password}
+                      onChange={(e) => setEmailForm((f) => ({ ...f, password: e.target.value }))}
+                      placeholder="••••••••"
+                      className="input-field pl-10"
+                    />
+                  </div>
+                </div>
+                <button type="submit" disabled={loading} className="btn-primary w-full justify-center flex items-center">
+                  {loading ? 'Please wait...' : emailMode === 'signup' ? 'Create account' : 'Sign in'}
+                </button>
+              </form>
+              <p className="text-center text-sm text-slate-500 mt-4">
+                {emailMode === 'signup' ? 'Already have an account?' : "Don't have an account?"}{' '}
+                <button
+                  type="button"
+                  onClick={() => setEmailMode(emailMode === 'signup' ? 'signin' : 'signup')}
+                  className="text-brand-600 font-medium hover:underline"
+                >
+                  {emailMode === 'signup' ? 'Sign in' : 'Sign up'}
+                </button>
+              </p>
+            </>
+          ) : step === 'phone' ? (
             <>
               <h1 className="font-display text-2xl font-bold text-slate-900 mb-1">Welcome back</h1>
               <p className="text-sm text-slate-500 mb-6">Sign in with your phone number to continue.</p>

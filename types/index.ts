@@ -1,6 +1,6 @@
 export interface User {
   id: string;
-  phone: string;
+  phone?: string;
   email?: string;
   name?: string;
   avatar?: string;
@@ -15,6 +15,7 @@ export interface Category {
   name: string;
   description?: string;
   image?: string;
+
   icon?: string;
   isActive: boolean;
   sortOrder: number;
@@ -130,4 +131,34 @@ export interface WalletTransaction {
   amount: number;
   description?: string;
   createdAt: string;
+}
+
+export interface Banner {
+  id: string;
+  title: string;
+  image: string;
+  link?: string;
+  sortOrder: number;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  durationDays: number;
+  discountPercent: number;
+  maxDiscountPerBooking?: number;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface UserSubscription {
+  id: string;
+  userId: string;
+  planId: string;
+  status: 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+  startDate?: string;
+  endDate?: string;
+  plan: SubscriptionPlan;
 }

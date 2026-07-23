@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { categoriesApi, servicesApi } from '@/lib/api';
-import { Category, Service } from '@/types';
+import { categoriesApi, servicesApi, bannersApi } from '@/lib/api';
+import { Category, Service, Banner } from '@/types';
 import CategoryGrid from '@/components/home/CategoryGrid';
+import BannerCarousel from '@/components/home/BannerCarousel';
 import ServiceCard from '@/components/services/ServiceCard';
 import Spinner from '@/components/ui/Spinner';
 import { ShieldCheck, Clock4, BadgePercent, ArrowRight, Search } from 'lucide-react';
@@ -12,6 +13,7 @@ import { useRouter } from 'next/navigation';
 export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const router = useRouter();
@@ -19,12 +21,16 @@ export default function HomePage() {
   useEffect(() => {
     (async () => {
       try {
-        const [catRes, svcRes] = await Promise.all([
+        const [catRes, svcRes, bannerRes] = await Promise.all([
           categoriesApi.getAll(),
           servicesApi.getAll(),
+          bannersApi.getActive().catch(() => null), // banners are decorative — never block the page
         ]);
         setCategories(catRes.data.data || catRes.data || []);
         setServices((svcRes.data.data || svcRes.data || []).slice(0, 8));
+        if (bannerRes) {
+          setBanners((bannerRes.data.data || bannerRes.data || []).sort((a: Banner, b: Banner) => a.sortOrder - b.sortOrder));
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -92,6 +98,9 @@ export default function HomePage() {
             </div>
           ))}
         </div>
+
+        {/* Promo banners (admin-managed) */}
+        {!loading && <BannerCarousel banners={banners} />}
 
         {/* Categories */}
         <section className="mb-14">

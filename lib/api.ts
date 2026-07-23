@@ -140,3 +140,30 @@ export const chatApi = {
     api.post(`/chat/${bookingId}/messages`, { message }),
   getUnreadCount: (bookingId: string) => api.get(`/chat/${bookingId}/unread`),
 };
+
+// Banners
+export const bannersApi = {
+  getActive: () => api.get('/banners'),
+};
+
+// Subscriptions
+export const subscriptionsApi = {
+  getPlans: () => api.get('/subscriptions/plans'),
+  getMy: () => api.get('/subscriptions/my'),
+  createOrder: (planId: string) => api.post('/subscriptions/order', { planId }),
+  verify: (data: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) =>
+    api.post('/subscriptions/verify', data),
+  cancel: () => api.post('/subscriptions/cancel'),
+};
+
+// AI Support
+export interface AiChatTurn {
+  role: 'user' | 'model';
+  text: string;
+}
+export const aiSupportApi = {
+  chat: (message: string, history: AiChatTurn[]) =>
+    api.post('/ai-support/chat', { message, history }),
+  escalate: (history: AiChatTurn[], subject?: string) =>
+    api.post('/ai-support/escalate', { history, subject }),
+};

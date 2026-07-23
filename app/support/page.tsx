@@ -59,6 +59,18 @@ export default function SupportPage() {
         </button>
       </div>
 
+      <a
+        href="/support/ai-chat"
+        className="flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50 px-5 py-4 mb-8 hover:bg-brand-100 transition-colors"
+      >
+        <span className="w-10 h-10 rounded-xl bg-brand-500 text-white flex items-center justify-center flex-shrink-0">💬</span>
+        <div>
+          <p className="font-semibold text-slate-800 text-sm">Chat with our AI Assistant</p>
+          <p className="text-xs text-slate-500">Get instant answers, or connect to a human agent any time.</p>
+        </div>
+        <ChevronRight className="h-4 w-4 text-brand-500 ml-auto flex-shrink-0" />
+      </a>
+
       {/* My tickets */}
       <section className="mb-8">
         <h2 className="font-semibold text-slate-800 mb-3">My tickets</h2>

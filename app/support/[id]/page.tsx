@@ -132,6 +132,7 @@ export default function TicketDetailPage() {
           ticket.messages.map((m) => {
             const isMine = m.senderId === user?.id;
             const isAdmin = m.senderType === 'ADMIN';
+            const isAi = m.senderType === 'AI';
             return (
               <div key={m.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
@@ -139,10 +140,15 @@ export default function TicketDetailPage() {
                     ? 'bg-brand-500 text-white rounded-br-sm'
                     : isAdmin
                     ? 'bg-emerald-50 text-slate-800 border border-emerald-100 rounded-bl-sm'
+                    : isAi
+                    ? 'bg-indigo-50 text-slate-800 border border-indigo-100 rounded-bl-sm'
                     : 'bg-slate-100 text-slate-800 rounded-bl-sm'
                 }`}>
                   {isAdmin && !isMine && (
                     <p className="text-[11px] font-semibold text-emerald-600 mb-0.5">Support Team</p>
+                  )}
+                  {isAi && (
+                    <p className="text-[11px] font-semibold text-indigo-500 mb-0.5">AI Assistant (before escalation)</p>
                   )}
                   <p className="leading-relaxed whitespace-pre-wrap">{m.message}</p>
                   <p className={`text-[10px] mt-1 ${isMine ? 'text-brand-100' : 'text-slate-400'}`}>

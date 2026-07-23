@@ -123,7 +123,9 @@ export default function ProfilePage() {
               </button>
             </div>
           )}
-          <p className="text-sm text-slate-500">+91 {user.phone}</p>
+          <p className="text-sm text-slate-500">
+            {user.phone ? `+91 ${user.phone}` : user.email || 'No phone or email on file'}
+          </p>
         </div>
       </div>
 

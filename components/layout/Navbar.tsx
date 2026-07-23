@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Search, Menu, X, LogOut, User } from 'lucide-react';
+import { Bell, Search, Menu, X, LogOut, User, Star, MessageCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { notificationsApi } from '@/lib/api';
@@ -82,11 +82,17 @@ export default function Navbar() {
                   <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden z-50">
                     <div className="px-4 py-3 border-b border-slate-100">
                       <p className="text-sm font-semibold text-slate-800 truncate">{user.name || 'User'}</p>
-                      <p className="text-xs text-slate-500 truncate">{user.phone}</p>
+                      <p className="text-xs text-slate-500 truncate">{user.phone || user.email}</p>
                     </div>
                     <div className="py-1">
                       <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                         <User className="h-4 w-4" /> My Profile
+                      </Link>
+                      <Link href="/subscription" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                        <Star className="h-4 w-4" /> Subscription Plans
+                      </Link>
+                      <Link href="/support/ai-chat" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                        <MessageCircle className="h-4 w-4" /> Live Chat
                       </Link>
                       <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50">
                         <LogOut className="h-4 w-4" /> Logout
