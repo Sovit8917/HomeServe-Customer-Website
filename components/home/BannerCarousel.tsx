@@ -16,10 +16,10 @@ export default function BannerCarousel({ banners }: { banners: Banner[] }) {
   const banner = banners[index];
   const content = (
     <img
-      src={banner.image}
-      alt={banner.title}
-      className="w-full h-32 sm:h-48 object-cover rounded-2xl"
-    />
+  src={banner.image}
+  alt={banner.title}
+  className="w-full h-48 sm:h-64 md:h-64 lg:h-[350px] object-cover rounded-2xl"
+/>
   );
 
   return (

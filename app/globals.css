@@ -1,6 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
 @import "tailwindcss";
 
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
 @theme {
   --color-brand-50: #f0f7ff;
   --color-brand-100: #e0efff;

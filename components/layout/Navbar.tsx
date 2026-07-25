@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, Search, Menu, X, LogOut, User, Star, MessageCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { notificationsApi } from '@/lib/api';
 import Avatar from '@/components/ui/Avatar';
@@ -11,8 +11,10 @@ export default function Navbar() {
   const { user, logout } = useAuthStore();
   const pathname = usePathname();
   const router = useRouter();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!user) { setUnreadCount(0); return; }
@@ -29,9 +31,41 @@ export default function Navbar() {
     return () => clearInterval(interval);
   }, [user, pathname]);
 
+  // Close the profile dropdown on outside click/tap
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [profileMenuOpen]);
+
+  // Close both menus whenever the route changes (tapping a link, back/forward, etc.)
+  useEffect(() => {
+    setProfileMenuOpen(false);
+    setMobileNavOpen(false);
+  }, [pathname]);
+
   const handleLogout = () => {
     logout();
     router.push('/login');
+  };
+
+  const toggleProfileMenu = () => {
+    setMobileNavOpen(false);
+    setProfileMenuOpen((v) => !v);
+  };
+
+  const toggleMobileNav = () => {
+    setProfileMenuOpen(false);
+    setMobileNavOpen((v) => !v);
   };
 
   return (
@@ -73,25 +107,25 @@ export default function Navbar() {
             )}
 
             {user ? (
-              <div className="relative">
-                <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors">
+              <div className="relative" ref={profileMenuRef}>
+                <button onClick={toggleProfileMenu} className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors">
                   <Avatar src={user.avatar} name={user.name} size="sm" />
                   <span className="text-sm font-medium text-slate-700 hidden sm:block max-w-24 truncate">{user.name || 'Profile'}</span>
                 </button>
-                {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden z-50">
+                {profileMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-52 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden z-50">
                     <div className="px-4 py-3 border-b border-slate-100">
                       <p className="text-sm font-semibold text-slate-800 truncate">{user.name || 'User'}</p>
                       <p className="text-xs text-slate-500 truncate">{user.phone || user.email}</p>
                     </div>
                     <div className="py-1">
-                      <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                      <Link href="/profile" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                         <User className="h-4 w-4" /> My Profile
                       </Link>
-                      <Link href="/subscription" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                      <Link href="/subscription" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                         <Star className="h-4 w-4" /> Subscription Plans
                       </Link>
-                      <Link href="/support/ai-chat" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                      <Link href="/support/ai-chat" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                         <MessageCircle className="h-4 w-4" /> Live Chat
                       </Link>
                       <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50">
@@ -106,17 +140,17 @@ export default function Navbar() {
             )}
 
             {/* Mobile menu btn */}
-            <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100">
-              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <button onClick={toggleMobileNav} className="md:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100">
+              {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
         </div>
 
         {/* Mobile Nav */}
-        {menuOpen && (
+        {mobileNavOpen && (
           <div className="md:hidden pb-4 pt-2 border-t border-slate-100 mt-2">
             {[['/', 'Home'], ['/services', 'Services'], ['/bookings', 'Bookings'], ['/support', 'Support']].map(([href, label]) => (
-              <Link key={href} href={href} onClick={() => setMenuOpen(false)}
+              <Link key={href} href={href} onClick={() => setMobileNavOpen(false)}
                 className={`block px-3 py-2.5 rounded-lg text-sm font-medium mb-1 ${pathname === href ? 'bg-brand-50 text-brand-600' : 'text-slate-600 hover:bg-slate-50'}`}>
                 {label}
               </Link>

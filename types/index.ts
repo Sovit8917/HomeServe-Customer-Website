@@ -64,6 +64,8 @@ export interface Address {
   latitude: number;
   longitude: number;
   isDefault: boolean;
+  contactPhone?: string;
+  contactName?: string;
 }
 
 export interface Booking {

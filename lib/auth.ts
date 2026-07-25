@@ -1,6 +1,16 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { prisma } from './prisma';
+import nodemailer from 'nodemailer';
+
+const mailer = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD, // Gmail App Password, NOT your regular password
+  },
+});
+const FROM_EMAIL = process.env.GMAIL_USER;
 
 /**
  * IMPORTANT: this instance manages login state for the WEBSITE ONLY
@@ -34,6 +44,24 @@ export const auth = betterAuth({
     // Keep this on so a stolen/rotated table can't be used to enumerate
     // whether an email is registered without ever confirming a password.
     requireEmailVerification: false,
+
+    async sendResetPassword({ user, url }) {
+      await mailer.sendMail({
+        from: FROM_EMAIL,
+        to: user.email,
+        subject: 'Reset your HomeServe password',
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2>Reset your password</h2>
+            <p>Hi ${user.name || 'there'}, click the button below to reset your HomeServe password. This link expires in 1 hour.</p>
+            <a href="${url}" style="display:inline-block;background:#0ea5e9;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">
+              Reset Password
+            </a>
+            <p style="color:#64748b;font-size:13px;">If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        `,
+      });
+    },
   },
 
   socialProviders: {

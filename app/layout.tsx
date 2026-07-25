@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AppChrome from "@/components/layout/AppChrome";
 import { Toaster } from "react-hot-toast";
@@ -6,6 +6,12 @@ import { Toaster } from "react-hot-toast";
 export const metadata: Metadata = {
   title: "HomeServe – Professional Home Services",
   description: "Book trusted home service professionals near you",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5, // allow pinch-zoom for accessibility, just don't leave it uncapped
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

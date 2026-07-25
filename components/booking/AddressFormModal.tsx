@@ -3,9 +3,12 @@ import { useState } from 'react';
 import { X, LocateFixed, Loader2, CheckCircle2 } from 'lucide-react';
 import { usersApi } from '@/lib/api';
 import { Address } from '@/types';
+import { useAuthStore } from '@/store/auth';
 import toast from 'react-hot-toast';
 
 export default function AddressFormModal({ onClose, onSaved }: { onClose: () => void; onSaved: (a: Address) => void }) {
+  const user = useAuthStore((s) => s.user);
+  const needsContactPhone = !user?.phone;
   const [form, setForm] = useState({
     label: 'Home',
     fullAddress: '',
@@ -15,6 +18,7 @@ export default function AddressFormModal({ onClose, onSaved }: { onClose: () => 
     pincode: '',
     latitude: undefined as number | undefined,
     longitude: undefined as number | undefined,
+    contactPhone: '',
   });
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -61,6 +65,9 @@ export default function AddressFormModal({ onClose, onSaved }: { onClose: () => 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullAddress || !form.city || !form.pincode) return toast.error('Please fill all required fields');
+    if (needsContactPhone && !form.contactPhone.trim()) {
+      return toast.error('Add a contact number so a worker can reach you');
+    }
     if (form.latitude === undefined || form.longitude === undefined) {
       return toast.error('Please detect your location so we can find nearby professionals');
     }
@@ -136,6 +143,22 @@ export default function AddressFormModal({ onClose, onSaved }: { onClose: () => 
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1.5 block">Pincode</label>
             <input value={form.pincode} onChange={(e) => setForm({ ...form, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })} placeholder="751001" className="input-field" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1.5 block">
+              Contact number{needsContactPhone ? '' : ' '}
+              {needsContactPhone ? (
+                <span className="text-xs font-normal text-red-500">(required — your account has no phone on file)</span>
+              ) : (
+                <span className="text-xs font-normal text-slate-400">(optional — defaults to your account phone)</span>
+              )}
+            </label>
+            <input
+              value={form.contactPhone}
+              onChange={(e) => setForm({ ...form, contactPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+              placeholder="10-digit number the worker can call"
+              className="input-field"
+            />
           </div>
           <button type="submit" disabled={loading} className="btn-primary w-full justify-center flex items-center">
             {loading ? 'Saving...' : 'Save address'}

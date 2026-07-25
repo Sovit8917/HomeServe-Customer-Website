@@ -83,7 +83,19 @@ function LoginContent() {
       const next = searchParams.get('next');
       router.push(next && next !== '/login' ? next : '/');
     } catch (err: any) {
-      toast.error(err?.message || 'Authentication failed');
+      const message = err?.message || 'Authentication failed';
+      const alreadyExists = /already exists|already registered|user exists/i.test(message);
+      if (emailMode === 'signup' && alreadyExists) {
+        toast.error(
+          <span>
+            This email is already registered.{' '}
+            <a href="/forgot-password" className="underline font-medium">Reset your password?</a>
+          </span>,
+          { duration: 6000 },
+        );
+      } else {
+        toast.error(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -252,6 +264,13 @@ function LoginContent() {
                     />
                   </div>
                 </div>
+                {emailMode === 'signin' && (
+                  <div className="text-right -mt-2">
+                    <a href="/forgot-password" className="text-xs text-brand-600 hover:underline font-medium">
+                      Forgot password?
+                    </a>
+                  </div>
+                )}
                 <button type="submit" disabled={loading} className="btn-primary w-full justify-center flex items-center">
                   {loading ? 'Please wait...' : emailMode === 'signup' ? 'Create account' : 'Sign in'}
                 </button>
