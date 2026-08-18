@@ -23,11 +23,26 @@ export default function SupportPage() {
 
   const load = () => {
     setLoading(true);
-    supportApi.getMyTickets().then((res) => setTickets(res.data.data || res.data || [])).finally(() => setLoading(false));
+    supportApi
+      .getMyTickets()
+      .then((res) => {
+        const payload = res.data?.data || res.data || {};
+        const ticketList = payload.tickets || (Array.isArray(payload) ? payload : []);
+        setTickets(Array.isArray(ticketList) ? ticketList : []);
+      })
+      .catch(() => setTickets([]))
+      .finally(() => setLoading(false));
   };
   useEffect(() => {
     load();
-    supportApi.getFaqs().then((res) => setFaqs(res.data.data || res.data || [])).catch(() => {});
+    supportApi
+      .getFaqs()
+      .then((res) => {
+        const payload = res.data?.data || res.data || {};
+        const faqList = payload.faqs || (Array.isArray(payload) ? payload : []);
+        setFaqs(Array.isArray(faqList) ? faqList : []);
+      })
+      .catch(() => setFaqs([]));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,7 +91,7 @@ export default function SupportPage() {
         <h2 className="font-semibold text-slate-800 mb-3">My tickets</h2>
         {loading ? (
           <div className="flex justify-center py-10"><Spinner /></div>
-        ) : tickets.length === 0 ? (
+        ) : !Array.isArray(tickets) || tickets.length === 0 ? (
           <div className="card p-6 text-center text-sm text-slate-500 flex flex-col items-center gap-2">
             <LifeBuoy className="h-8 w-8 text-slate-300" />
             No support tickets yet.
@@ -103,7 +118,7 @@ export default function SupportPage() {
       {/* FAQ */}
       <section>
         <h2 className="font-semibold text-slate-800 mb-3">Frequently asked questions</h2>
-        {faqs.length === 0 ? (
+        {!Array.isArray(faqs) || faqs.length === 0 ? (
           <div className="flex justify-center py-6"><Spinner /></div>
         ) : (
           <div className="card divide-y divide-slate-50">

@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import logo from '@/assets/logo.png';
+
 export default function Footer() {
   return (
     <footer className="bg-white border-t border-slate-100 mt-16">
@@ -6,8 +8,8 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 bg-gradient-to-br from-brand-500 to-brand-700 rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs font-bold">HS</span>
+              <div className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center border border-slate-100 bg-white">
+                <img src={logo.src} alt="HomeServe" className="w-full h-full object-cover" />
               </div>
               <span className="font-display font-bold text-slate-900">HomeServe</span>
             </div>

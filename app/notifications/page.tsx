@@ -1,14 +1,17 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { notificationsApi } from '@/lib/api';
 import { Notification } from '@/types';
+import { resolveNotificationLink } from '@/lib/notificationLink';
 import Spinner from '@/components/ui/Spinner';
 import EmptyState from '@/components/ui/EmptyState';
-import { Bell, BellOff, CheckCheck } from 'lucide-react';
+import { Bell, BellOff, CheckCheck, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const [items, setItems] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -27,6 +30,15 @@ export default function NotificationsPage() {
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
     setUnreadCount((c) => Math.max(0, c - 1));
     try { await notificationsApi.markRead(id); } catch {}
+  };
+
+  // Marks the notification read, then deep-links into whatever it's about
+  // (a booking, a dispute, a specific extra-time request, etc.) instead of
+  // just sitting on the notifications list.
+  const openNotification = (n: Notification) => {
+    if (!n.isRead) markRead(n.id);
+    const href = resolveNotificationLink(n);
+    if (href) router.push(href);
   };
 
   const markAllRead = async () => {
@@ -56,20 +68,24 @@ export default function NotificationsPage() {
         <EmptyState icon={BellOff} title="No notifications yet" description="We'll let you know when something important happens." />
       ) : (
         <div className="space-y-2">
-          {items.map((n) => (
-            <button key={n.id} onClick={() => markRead(n.id)}
-              className={`w-full text-left card p-4 flex items-start gap-3 transition-colors ${!n.isRead ? 'bg-brand-50/40 border-brand-100' : ''}`}>
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${!n.isRead ? 'bg-brand-100' : 'bg-slate-100'}`}>
-                <Bell className={`h-4.5 w-4.5 ${!n.isRead ? 'text-brand-600' : 'text-slate-400'}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800">{n.title}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{n.body}</p>
-                <p className="text-[11px] text-slate-400 mt-1">{formatDistanceToNow(parseISO(n.createdAt), { addSuffix: true })}</p>
-              </div>
-              {!n.isRead && <span className="w-2 h-2 rounded-full bg-brand-500 flex-shrink-0 mt-1.5" />}
-            </button>
-          ))}
+          {items.map((n) => {
+            const href = resolveNotificationLink(n);
+            return (
+              <button key={n.id} onClick={() => openNotification(n)}
+                className={`w-full text-left card p-4 flex items-start gap-3 transition-colors ${!n.isRead ? 'bg-brand-50/40 border-brand-100' : ''}`}>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${!n.isRead ? 'bg-brand-100' : 'bg-slate-100'}`}>
+                  <Bell className={`h-4.5 w-4.5 ${!n.isRead ? 'text-brand-600' : 'text-slate-400'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800">{n.title}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{n.body}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">{formatDistanceToNow(parseISO(n.createdAt), { addSuffix: true })}</p>
+                </div>
+                {!n.isRead && <span className="w-2 h-2 rounded-full bg-brand-500 flex-shrink-0 mt-1.5" />}
+                {href && <ChevronRight className="h-4 w-4 text-slate-300 flex-shrink-0 mt-1.5" />}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

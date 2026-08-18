@@ -1,35 +1,66 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { categoriesApi, servicesApi, bannersApi } from '@/lib/api';
+import { categoriesApi, servicesApi, bannersApi, usersApi } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
 import { Category, Service, Banner } from '@/types';
-import CategoryGrid from '@/components/home/CategoryGrid';
 import BannerCarousel from '@/components/home/BannerCarousel';
-import ServiceCard from '@/components/services/ServiceCard';
-import Spinner from '@/components/ui/Spinner';
-import { ShieldCheck, Clock4, BadgePercent, ArrowRight, Search } from 'lucide-react';
+import AppServiceCard from '@/components/home/AppServiceCard';
+import CategoryGrid from '@/components/home/CategoryGrid';
+import { ServiceCardSkeleton, CategoryGridSkeleton, BannerSkeleton, Skeleton } from '@/components/ui/Skeleton';
+import {
+  RotateCcw,
+  Flame,
+  ArrowRight,
+  Sparkles,
+  Wrench,
+  Zap,
+  Hammer,
+  PaintBucket,
+  Wind,
+  Bug,
+  Droplets
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
+
+const CATEGORY_ICONS: Record<string, any> = {
+  cleaning: Sparkles, plumbing: Droplets, electrician: Zap, electrical: Zap,
+  carpentry: Hammer, painting: PaintBucket, ac: Wind, pest: Bug, default: Sparkles,
+};
+
+function getCategoryIcon(name?: string) {
+  if (!name) return Sparkles;
+  const key = Object.keys(CATEGORY_ICONS).find((k) => name.toLowerCase().includes(k));
+  return CATEGORY_ICONS[key || 'default'] || Sparkles;
+}
 
 export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
+  const [deals, setDeals] = useState<Service[]>([]);
+  const [recentlyViewed, setRecentlyViewed] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
     (async () => {
       try {
-        const [catRes, svcRes, bannerRes] = await Promise.all([
+        const [catRes, svcRes, bannerRes, dealsRes] = await Promise.all([
           categoriesApi.getAll(),
           servicesApi.getAll(),
-          bannersApi.getActive().catch(() => null), // banners are decorative — never block the page
+          bannersApi.getActive().catch(() => null),
+          servicesApi.getDeals().catch(() => null),
         ]);
         setCategories(catRes.data.data || catRes.data || []);
-        setServices((svcRes.data.data || svcRes.data || []).slice(0, 8));
+        setServices(svcRes.data.data || svcRes.data || []);
         if (bannerRes) {
           setBanners((bannerRes.data.data || bannerRes.data || []).sort((a: Banner, b: Banner) => a.sortOrder - b.sortOrder));
+        }
+        if (dealsRes) {
+          setDeals(dealsRes.data.data || dealsRes.data || []);
         }
       } catch (e) {
         console.error(e);
@@ -39,110 +70,179 @@ export default function HomePage() {
     })();
   }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    router.push(`/search?q=${encodeURIComponent(query)}`);
-  };
+  useEffect(() => {
+    if (!user) {
+      setRecentlyViewed([]);
+      return;
+    }
+    servicesApi
+      .getRecentViews()
+      .then((res) => setRecentlyViewed((res.data.data || res.data || []).slice(0, 8)))
+      .catch(() => setRecentlyViewed([]));
+  }, [user]);
+
+  // Filter services, deals, and recent items by active category pill
+  const filteredServices = services.filter((s) => {
+    if (activeCategory === 'all') return true;
+    return s.categoryId === activeCategory || s.category?.id === activeCategory;
+  });
+
+  const filteredDeals = deals.filter((s) => {
+    if (activeCategory === 'all') return true;
+    return s.categoryId === activeCategory || s.category?.id === activeCategory;
+  });
+
+  const filteredRecent = recentlyViewed.filter((s) => {
+    if (activeCategory === 'all') return true;
+    return s.categoryId === activeCategory || s.category?.id === activeCategory;
+  });
 
   return (
-    <div>
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-brand-600 via-brand-500 to-brand-700">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute -top-24 -right-24 w-96 h-96 bg-white rounded-full blur-3xl" />
-          <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-accent-400 rounded-full blur-3xl" />
-        </div>
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-20 sm:pt-20 sm:pb-28">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-1.5 bg-white/15 text-white text-xs font-medium px-3 py-1.5 rounded-full mb-5 backdrop-blur">
-              <ShieldCheck className="h-3.5 w-3.5" /> Verified & background-checked professionals
-            </span>
-            <h1 className="font-display text-3xl sm:text-5xl font-extrabold text-white leading-tight mb-4">
-              Home services,<br/>done right.
-            </h1>
-            <p className="text-brand-50 text-base sm:text-lg mb-8 max-w-lg">
-              Cleaning, repairs, and more — booked in minutes, handled by trusted experts near you.
-            </p>
-            <form onSubmit={handleSearch} className="flex bg-white rounded-2xl shadow-xl p-1.5 max-w-md">
-              <div className="flex items-center pl-3 text-slate-400">
-                <Search className="h-5 w-5" />
-              </div>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="What do you need help with?"
-                className="flex-1 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none bg-transparent"
-              />
-              <button type="submit" className="btn-primary text-sm py-2.5 px-5 whitespace-nowrap">Search</button>
-            </form>
-          </div>
-        </div>
-      </section>
+    <div className="min-h-screen bg-slate-50/70 pb-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-8 space-y-6 sm:space-y-8">
+        {/* Dynamic Category Filter Pills */}
+        <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+          <button
+            type="button"
+            onClick={() => setActiveCategory('all')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 shadow-sm ${
+              activeCategory === 'all'
+                ? 'bg-emerald-800 text-white shadow-emerald-900/10'
+                : 'bg-white border border-slate-200/80 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/50'
+            }`}
+          >
+            <span>All</span>
+          </button>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Trust strip */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-6 -mt-10 mb-12 relative z-10">
-          {[
-            { icon: ShieldCheck, label: 'Verified pros', sub: 'Background checked' },
-            { icon: Clock4, label: 'On-time', sub: 'Avg. 30 min arrival' },
-            { icon: BadgePercent, label: 'Fair pricing', sub: 'No hidden fees' },
-          ].map(({ icon: Icon, label, sub }) => (
-            <div key={label} className="card p-4 sm:p-5 flex flex-col sm:flex-row items-center sm:items-start gap-2 sm:gap-3 text-center sm:text-left">
-              <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
-                <Icon className="h-5 w-5 text-brand-500" />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-800 text-sm">{label}</p>
-                <p className="text-xs text-slate-500 hidden sm:block">{sub}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Promo banners (admin-managed) */}
-        {!loading && <BannerCarousel banners={banners} />}
-
-        {/* Categories */}
-        <section className="mb-14">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="section-title">Browse by category</h2>
-          </div>
           {loading ? (
-            <div className="flex justify-center py-10"><Spinner /></div>
+            Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="w-24 h-9 rounded-full shrink-0" />
+            ))
+          ) : (
+            categories.map((cat) => {
+              const Icon = getCategoryIcon(cat.name);
+              const isActive = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 shadow-sm ${
+                    isActive
+                      ? 'bg-emerald-800 text-white shadow-emerald-900/10'
+                      : 'bg-white border border-slate-200/80 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/50'
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-emerald-700'}`} />
+                  <span>{cat.name}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {/* App Promo Banner Carousel (Top) */}
+        {loading ? (
+          <BannerSkeleton />
+        ) : banners.length > 0 ? (
+          <BannerCarousel banners={banners} />
+        ) : null}
+
+        {/* Section: Limited Offer (Deals & Offers) */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-slate-900 text-lg sm:text-xl flex items-center gap-2">
+              <Flame className="h-5 w-5 text-amber-500 fill-amber-500" />
+              <span>Limited Offer</span>
+            </h2>
+            <Link href="/deals" className="text-xs font-semibold text-emerald-800 hover:underline">
+              See all offers
+            </Link>
+          </div>
+
+          {loading ? (
+            <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 scrollbar-none">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <ServiceCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 scrollbar-none snap-x snap-mandatory touch-pan-x">
+              {(filteredDeals.length > 0 ? filteredDeals : filteredServices.filter((s) => s.discountPercent)).map((s) => (
+                <AppServiceCard
+                  key={s.id}
+                  service={s}
+                  badgeText={`${s.discountPercent || 20}% OFF`}
+                  badgeType="discount"
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Section: Jump Back In (Recently Viewed or Recommended) */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-slate-900 text-lg sm:text-xl flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-slate-800" />
+              <span>Jump Back In</span>
+            </h2>
+            {recentlyViewed.length > 0 && (
+              <Link href="/services" className="text-xs font-semibold text-emerald-800 hover:underline">
+                See all
+              </Link>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 scrollbar-none">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <ServiceCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 scrollbar-none snap-x snap-mandatory touch-pan-x">
+              {(filteredRecent.length > 0 ? filteredRecent : filteredServices.slice(0, 4)).map((s) => (
+                <AppServiceCard key={s.id} service={s} badgeText="Recent" badgeType="recent" />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Categories Section */}
+        <section className="space-y-4">
+          <h2 className="font-bold text-slate-900 text-lg sm:text-xl">Categories</h2>
+          {loading ? (
+            <CategoryGridSkeleton />
           ) : (
             <CategoryGrid categories={categories} />
           )}
         </section>
 
-        {/* Popular services */}
-        <section className="mb-16">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="section-title">Popular services</h2>
-            <Link href="/services" className="text-sm font-medium text-brand-600 flex items-center gap-1 hover:gap-1.5 transition-all">
+        {/* Popular Services Section */}
+        <section className="space-y-4 pt-2">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-slate-900 text-lg sm:text-xl">Popular Services</h2>
+            <Link href="/services" className="text-xs font-semibold text-emerald-800 flex items-center gap-1 hover:underline">
               View all <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
+
           {loading ? (
-            <div className="flex justify-center py-10"><Spinner /></div>
-          ) : services.length === 0 ? (
-            <p className="text-slate-500 text-sm">No services available right now.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <ServiceCardSkeleton key={i} isGrid />
+              ))}
+            </div>
+          ) : filteredServices.length === 0 ? (
+            <p className="text-slate-500 text-sm py-4">No services found for this category.</p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-              {services.map((s) => <ServiceCard key={s.id} service={s} />)}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {filteredServices.slice(0, 8).map((s) => (
+                <AppServiceCard key={s.id} service={s} className="w-full" />
+              ))}
             </div>
           )}
-        </section>
-
-        {/* CTA banner */}
-        <section className="mb-16">
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-accent-500 to-accent-600 px-6 py-10 sm:px-12 sm:py-14 text-center">
-            <div className="absolute -top-10 -right-10 w-48 h-48 bg-white/10 rounded-full" />
-            <h3 className="font-display text-2xl sm:text-3xl font-bold text-white mb-2">Need it done today?</h3>
-            <p className="text-accent-50 mb-6 max-w-md mx-auto">Emergency service available for urgent repairs — a professional dispatched within the hour.</p>
-            <Link href="/services" className="inline-flex items-center gap-2 bg-white text-accent-600 font-semibold rounded-xl px-6 py-3 hover:bg-accent-50 transition-colors">
-              Book emergency service <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
         </section>
       </div>
     </div>

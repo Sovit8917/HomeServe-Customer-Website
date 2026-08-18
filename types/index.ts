@@ -29,10 +29,52 @@ export interface Service {
   description?: string;
   image?: string;
   basePrice: number;
+  originalPrice?: number;
+  discountPercent?: number;
   priceType: string;
   duration: number;
   isActive: boolean;
   category?: Category;
+  rating?: number;
+  totalReviews?: number;
+  viewedAt?: string;
+}
+
+export interface ServiceReview {
+  id: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
+  user?: { name?: string; avatar?: string };
+}
+
+export interface SavedCard {
+  id: string;
+  userId: string;
+  last4: string;
+  network?: string;
+  cardholderName?: string;
+  createdAt: string;
+}
+
+export interface PreBookingThread {
+  counterpartId: string;
+  counterpartName?: string;
+  counterpartAvatar?: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  lastMessageFromMe: boolean;
+  unreadCount: number;
+}
+
+export interface PreBookingMessage {
+  id: string;
+  userId: string;
+  workerId: string;
+  senderType: 'USER' | 'WORKER';
+  message: string;
+  isRead: boolean;
+  createdAt: string;
 }
 
 export interface Worker {
@@ -81,6 +123,81 @@ export interface Booking {
   notes?: string;
   cancellationReason?: string;
   createdAt: string;
+  // Reschedule
+  rescheduleCount?: number;
+  previousScheduledDate?: string;
+  previousScheduledTime?: string;
+  pendingRescheduleDate?: string;
+  pendingRescheduleTime?: string;
+  // Completion proof photos, uploaded by the worker
+  proofBeforePhotos?: string[];
+  proofAfterPhotos?: string[];
+  // Extra charge / extra time requests
+  extraCharges?: ExtraChargeRequest[];
+  extraTimeRequests?: ExtraTimeRequest[];
+}
+
+export type ExtraChargeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ExtraChargePaymentStatus = 'NOT_REQUIRED' | 'PENDING' | 'PAID';
+
+export interface ExtraChargeRequest {
+  id: string;
+  bookingId: string;
+  workerId: string;
+  label: string;
+  amount: number;
+  reason?: string;
+  photos?: string[];
+  status: ExtraChargeStatus;
+  paymentStatus: ExtraChargePaymentStatus;
+  respondedAt?: string;
+  paidAt?: string;
+  createdAt: string;
+}
+
+export type ExtraTimeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ExtraTimeRequest {
+  id: string;
+  bookingId: string;
+  workerId: string;
+  requestedMinutes: number;
+  graceMinutesApplied: number;
+  chargeableMinutes: number;
+  amount: number;
+  reason?: string;
+  status: ExtraTimeStatus;
+  paymentStatus: ExtraChargePaymentStatus;
+  respondedAt?: string;
+  paidAt?: string;
+  createdAt: string;
+}
+
+export interface AvailabilitySlot {
+  time: string;
+  status: 'FREE' | 'BOOKED' | 'UNAVAILABLE';
+  declineRisk: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
+export interface CancellationPreview {
+  isCancellable: boolean;
+  isPaid: boolean;
+  paidAmount?: number;
+  refundAmount?: number;
+  feeAmount?: number;
+  feePercent?: number;
+  reasonCode?: string;
+  note?: string;
+}
+
+export interface BookingPricePreview {
+  items: { serviceId: string; quantity: number; price: number }[];
+  totalAmount: number;
+  discountAmount: number;
+  taxAmount: number;
+  finalAmount: number;
+  couponId?: string;
+  subscriptionUpsell?: any;
 }
 
 export type BookingStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
@@ -96,7 +213,22 @@ export interface Payment {
   id: string;
   amount: number;
   method: 'UPI' | 'CARD' | 'WALLET' | 'CASH';
-  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
+  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
+  createdAt?: string;
+  booking?: { bookingNumber: string; status: BookingStatus };
+}
+
+export interface RefundEntry {
+  id: string;
+  bookingId: string;
+  paymentId: string;
+  amount: number;
+  destination: 'ORIGINAL' | 'WALLET';
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  reason?: string;
+  createdAt: string;
+  completedAt?: string;
+  booking?: { bookingNumber: string };
 }
 
 export interface Review {
@@ -114,6 +246,10 @@ export interface Notification {
   body: string;
   isRead: boolean;
   type?: string;
+  // Structured payload the backend attaches per notification type — e.g.
+  // { bookingId }, { bookingId, disputeId }, { bookingId, extraTimeRequestId },
+  // { serviceId }. Used to deep-link the notification to the right screen.
+  data?: Record<string, any> | null;
   createdAt: string;
 }
 
@@ -153,6 +289,70 @@ export interface SubscriptionPlan {
   maxDiscountPerBooking?: number;
   isActive: boolean;
   sortOrder: number;
+}
+
+export interface InvoiceLineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  issuedAt: string;
+  companyName: string;
+  companyGstNumber?: string;
+  customerName: string;
+  customerGstNumber?: string;
+  placeOfSupply?: string;
+  paymentMethod: string;
+  lineItems: InvoiceLineItem[];
+  subtotal: number;
+  discountAmount: number;
+  taxableAmount: number;
+  taxRate: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  totalAmount: number;
+  booking?: Booking;
+}
+
+export type DisputeStatus =
+  | 'OPEN'
+  | 'UNDER_REVIEW'
+  | 'RESOLVED_REFUNDED'
+  | 'RESOLVED_PARTIAL_REFUND'
+  | 'RESOLVED_UPHELD'
+  | 'RESOLVED_NO_ACTION'
+  | 'WITHDRAWN';
+
+export type DisputeReason =
+  | 'SERVICE_NOT_AS_DESCRIBED'
+  | 'WORKER_NO_SHOW'
+  | 'OVERCHARGED'
+  | 'DUPLICATE_CHARGE'
+  | 'UNAUTHORIZED_CHARGE'
+  | 'DAMAGE_OR_LOSS'
+  | 'EXTRA_CHARGE_UNJUSTIFIED'
+  | 'REFUND_NOT_RECEIVED'
+  | 'OTHER';
+
+export interface Dispute {
+  id: string;
+  bookingId: string;
+  raisedByType: 'CUSTOMER' | 'WORKER';
+  reason: DisputeReason;
+  description: string;
+  amountClaimed?: number;
+  evidenceUrls?: string[];
+  status: DisputeStatus;
+  resolutionNote?: string;
+  refundAmount?: number;
+  booking?: Booking;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface UserSubscription {

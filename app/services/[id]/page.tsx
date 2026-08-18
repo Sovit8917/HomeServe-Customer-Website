@@ -4,12 +4,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { servicesApi, workersApi, usersApi } from '@/lib/api';
 import { useBookingStore } from '@/store/booking';
 import { useAuthStore } from '@/store/auth';
-import { Service, Worker } from '@/types';
+import { Service, Worker, ServiceReview } from '@/types';
 import Spinner from '@/components/ui/Spinner';
 import WorkerCard from '@/components/services/WorkerCard';
 import EmptyState from '@/components/ui/EmptyState';
-import { Clock, ShieldCheck, ChevronLeft, Users } from 'lucide-react';
+import StarRating from '@/components/ui/StarRating';
+import Avatar from '@/components/ui/Avatar';
+import { Clock, ShieldCheck, ChevronLeft, Users, Sparkles, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { format, parseISO } from 'date-fns';
 
 export default function ServiceDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +22,8 @@ export default function ServiceDetailsPage() {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [workersLoading, setWorkersLoading] = useState(true);
+  const [reviews, setReviews] = useState<ServiceReview[]>([]);
+  const [reviewStats, setReviewStats] = useState<{ averageRating: number; totalReviews: number } | null>(null);
   const setDraft = useBookingStore((s) => s.setDraft);
   const { user } = useAuthStore();
 
@@ -28,7 +33,19 @@ export default function ServiceDetailsPage() {
     servicesApi.getOne(id)
       .then((res) => setService(res.data.data || res.data))
       .finally(() => setLoading(false));
+
+    servicesApi.getReviews(id).then((res) => {
+      const payload = res.data.data || res.data || {};
+      setReviews(payload.reviews || []);
+      setReviewStats({ averageRating: payload.averageRating || 0, totalReviews: payload.totalReviews || 0 });
+    }).catch(() => {});
   }, [id]);
+
+  // Log this view so it surfaces in the customer's "Recently viewed" list.
+  useEffect(() => {
+    if (!id || !user) return;
+    servicesApi.trackView(id).catch(() => {});
+  }, [id, user]);
 
   // Nearby professionals require a location; use the customer's default
   // saved address first, and fall back to browser geolocation if needed.
@@ -80,12 +97,15 @@ export default function ServiceDetailsPage() {
       </button>
 
       <div className="card overflow-hidden mb-6">
-        <div className="h-48 sm:h-64 bg-gradient-to-br from-brand-100 to-brand-50 relative">
+        <div className="h-48 sm:h-64 bg-gradient-to-br from-brand-800 to-brand-500 relative">
           {service.image ? (
             <img src={service.image} alt={service.name} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <span className="text-6xl font-display font-bold text-brand-200">{service.name.charAt(0)}</span>
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+              <div className="w-16 h-16 rounded-full bg-white/15 flex items-center justify-center">
+                <Sparkles className="h-7 w-7 text-white" />
+              </div>
+              <span className="text-xs font-bold tracking-wider text-white/80 uppercase">{service.category?.name || 'Service'}</span>
             </div>
           )}
         </div>
@@ -105,6 +125,35 @@ export default function ServiceDetailsPage() {
           </div>
         </div>
       </div>
+
+      {/* Service reviews */}
+      {reviewStats && reviewStats.totalReviews > 0 && (
+        <div className="card p-5 sm:p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-title mb-0">Customer reviews</h2>
+            <div className="flex items-center gap-2">
+              <StarRating rating={reviewStats.averageRating} />
+              <span className="text-sm font-semibold text-slate-700">{reviewStats.averageRating.toFixed(1)}</span>
+              <span className="text-xs text-slate-400">({reviewStats.totalReviews})</span>
+            </div>
+          </div>
+          <div className="space-y-4">
+            {reviews.map((r) => (
+              <div key={r.id} className="flex items-start gap-3 pb-4 border-b border-slate-50 last:border-0 last:pb-0">
+                <Avatar src={r.user?.avatar} name={r.user?.name} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <p className="text-sm font-medium text-slate-800">{r.user?.name || 'Customer'}</p>
+                    <p className="text-[11px] text-slate-400 flex-shrink-0">{format(parseISO(r.createdAt), 'MMM d, yyyy')}</p>
+                  </div>
+                  <StarRating rating={r.rating} />
+                  {r.comment && <p className="text-sm text-slate-600 mt-1.5">{r.comment}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mb-6">
         <h2 className="section-title mb-1">Choose a professional</h2>
@@ -128,6 +177,7 @@ export default function ServiceDetailsPage() {
                 price={(w as any).price ?? service.basePrice}
                 selected={selectedWorkerId === w.id}
                 onSelect={() => setSelectedWorkerId(selectedWorkerId === w.id ? null : w.id)}
+                serviceName={service.name}
               />
             ))}
           </div>

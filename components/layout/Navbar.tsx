@@ -1,11 +1,12 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Search, Menu, X, LogOut, User, Star, MessageCircle } from 'lucide-react';
+import { Bell, Search, Menu, X, LogOut, User, Star, MessageCircle, Receipt, ShieldAlert, Wallet, BadgePercent, CreditCard, Heart, SlidersHorizontal } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { notificationsApi } from '@/lib/api';
 import Avatar from '@/components/ui/Avatar';
+import logo from '@/assets/logo.png';
 
 export default function Navbar() {
   const { user, logout } = useAuthStore();
@@ -18,34 +19,25 @@ export default function Navbar() {
 
   useEffect(() => {
     if (!user) { setUnreadCount(0); return; }
-    const fetchUnread = () => {
-      notificationsApi.getAll()
-        .then((res) => {
-          const payload = res.data.data || res.data || {};
-          setUnreadCount(payload.unreadCount || 0);
-        })
-        .catch(() => {});
-    };
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
+    notificationsApi.getAll()
+      .then((res) => {
+        const list = res.data?.data || res.data || [];
+        if (Array.isArray(list)) {
+          setUnreadCount(list.filter((n: any) => !n.isRead).length);
+        }
+      })
+      .catch(() => setUnreadCount(0));
   }, [user, pathname]);
 
-  // Close the profile dropdown on outside click/tap
   useEffect(() => {
-    if (!profileMenuOpen) return;
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+    function handleClickOutside(e: MouseEvent) {
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
         setProfileMenuOpen(false);
       }
-    };
+    }
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
-  }, [profileMenuOpen]);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Close both menus whenever the route changes (tapping a link, back/forward, etc.)
   useEffect(() => {
@@ -68,33 +60,73 @@ export default function Navbar() {
     setMobileNavOpen((v) => !v);
   };
 
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleNavbarSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/services?search=${encodeURIComponent(searchQuery.trim())}`);
+    } else {
+      router.push('/services');
+    }
+  };
+
   return (
-    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 shadow-sm">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 gap-3">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-700 rounded-lg flex items-center justify-center">
-              <span className="text-white text-xs font-bold">HS</span>
+          <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl overflow-hidden shadow-xs border border-slate-100 flex items-center justify-center bg-white">
+              <img src={logo.src} alt="HomeServe" className="w-full h-full object-cover" />
             </div>
             <span className="font-display font-bold text-slate-900 text-lg hidden sm:block">HomeServe</span>
           </Link>
 
+          {/* Inline Search Bar (Tablet & Desktop) */}
+          <form onSubmit={handleNavbarSearch} className="hidden sm:flex flex-1 max-w-md lg:max-w-lg items-center bg-slate-50 rounded-full pl-4 pr-1 py-1 border border-slate-200/90 shadow-sm focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-transparent transition-all">
+            <Search className="h-4 w-4 text-slate-400 mr-2.5 flex-shrink-0" />
+            <input
+              name="query"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder='Search "AC repair", "deep cleaning"...'
+              className="w-full text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
+            />
+            <button
+              type="submit"
+              className="w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 flex items-center justify-center flex-shrink-0 transition-colors ml-1"
+              aria-label="Filter"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
+          </form>
+
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            {[['/', 'Home'], ['/services', 'Services'], ['/bookings', 'Bookings'], ['/support', 'Support']].map(([href, label]) => (
+          <nav className="hidden lg:flex items-center gap-1">
+            {[['/', 'Home'], ['/services', 'Services'], ['/deals', 'Deals'], ['/bookings', 'Bookings'], ['/support', 'Support']].map(([href, label]) => (
               <Link key={href} href={href}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === href ? 'bg-brand-50 text-brand-600' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}>
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === href ? 'bg-brand-50 text-brand-600 font-semibold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}>
                 {label}
               </Link>
             ))}
           </nav>
 
           {/* Right actions */}
-          <div className="flex items-center gap-2">
-            <Link href="/search" className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Mobile Only Search Icon */}
+            <Link
+              href="/search"
+              aria-label="Search"
+              className="sm:hidden p-2 rounded-xl text-slate-600 hover:text-emerald-800 hover:bg-slate-100 transition-colors"
+            >
               <Search className="h-5 w-5" />
             </Link>
+            {user && (
+              <Link href="/chat" className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors">
+                <MessageCircle className="h-5 w-5" />
+              </Link>
+            )}
             {user && (
               <Link href="/notifications" className="relative p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors">
                 <Bell className="h-5 w-5" />
@@ -122,8 +154,26 @@ export default function Navbar() {
                       <Link href="/profile" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                         <User className="h-4 w-4" /> My Profile
                       </Link>
+                      <Link href="/wallet" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                        <Wallet className="h-4 w-4" /> Wallet
+                      </Link>
+                      <Link href="/profile/cards" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                        <CreditCard className="h-4 w-4" /> Saved Cards
+                      </Link>
+                      <Link href="/favorites" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                        <Heart className="h-4 w-4" /> Favorites
+                      </Link>
+                      <Link href="/deals" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                        <BadgePercent className="h-4 w-4" /> Deals &amp; Offers
+                      </Link>
                       <Link href="/subscription" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                         <Star className="h-4 w-4" /> Subscription Plans
+                      </Link>
+                      <Link href="/invoices" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                        <Receipt className="h-4 w-4" /> Invoices &amp; Receipts
+                      </Link>
+                      <Link href="/disputes" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                        <ShieldAlert className="h-4 w-4" /> My Disputes
                       </Link>
                       <Link href="/support/ai-chat" onClick={() => setProfileMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                         <MessageCircle className="h-4 w-4" /> Live Chat
@@ -146,16 +196,33 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Mobile Nav */}
+        {/* Floating Mobile Nav Overlay */}
         {mobileNavOpen && (
-          <div className="md:hidden pb-4 pt-2 border-t border-slate-100 mt-2">
-            {[['/', 'Home'], ['/services', 'Services'], ['/bookings', 'Bookings'], ['/support', 'Support']].map(([href, label]) => (
-              <Link key={href} href={href} onClick={() => setMobileNavOpen(false)}
-                className={`block px-3 py-2.5 rounded-lg text-sm font-medium mb-1 ${pathname === href ? 'bg-brand-50 text-brand-600' : 'text-slate-600 hover:bg-slate-50'}`}>
-                {label}
-              </Link>
-            ))}
-          </div>
+          <>
+            {/* Backdrop overlay */}
+            <div
+              className="fixed inset-0 top-16 bg-slate-900/25 backdrop-blur-xs z-40 md:hidden"
+              onClick={() => setMobileNavOpen(false)}
+            />
+
+            {/* Floating Dropdown Menu */}
+            <div className="absolute top-full left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 shadow-2xl px-4 py-3 space-y-1 md:hidden">
+              {[['/', 'Home'], ['/services', 'Services'], ['/deals', 'Deals'], ['/bookings', 'Bookings'], ['/support', 'Support']].map(([href, label]) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setMobileNavOpen(false)}
+                  className={`block px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${
+                    pathname === href
+                      ? 'bg-emerald-50 text-emerald-800'
+                      : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </header>
