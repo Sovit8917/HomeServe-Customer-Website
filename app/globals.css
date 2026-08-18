@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 html, body {
@@ -7,37 +7,48 @@ html, body {
 }
 
 @theme {
-  --color-brand-50: #f0f7ff;
-  --color-brand-100: #e0efff;
-  --color-brand-200: #b9ddff;
-  --color-brand-300: #7cc0ff;
-  --color-brand-400: #36a0ff;
-  --color-brand-500: #0b7de8;
-  --color-brand-600: #0060c5;
-  --color-brand-700: #004d9e;
-  --color-brand-800: #033e7c;
-  --color-brand-900: #083567;
+  /* Servexa palette — deep teal-green surfaces, warm gold accent */
+  --color-brand-50: #E4F3EC;
+  --color-brand-100: #CFEBDD;
+  --color-brand-200: #A6DAC3;
+  --color-brand-300: #6FC29F;
+  --color-brand-400: #3AA87E;
+  --color-brand-500: #1F7A5C;
+  --color-brand-600: #186B50;
+  --color-brand-700: #12513C;
+  --color-brand-800: #0F3B2C;
+  --color-brand-900: #0A2A20;
 
-  --color-accent-50: #fff7ed;
-  --color-accent-100: #ffedd5;
-  --color-accent-200: #fed7aa;
-  --color-accent-300: #fdba74;
-  --color-accent-400: #fb923c;
-  --color-accent-500: #f97316;
-  --color-accent-600: #ea580c;
+  --color-accent-50: #FEF5DA;
+  --color-accent-100: #FCEBB5;
+  --color-accent-200: #F9DD87;
+  --color-accent-300: #F6CD57;
+  --color-accent-400: #F2B807;
+  --color-accent-500: #F2B807;
+  --color-accent-600: #D69E00;
 
-  --color-surface: #f8fafc;
-  --color-muted: #64748b;
+  --color-surface: #F6F8F7;
+  --color-muted: #5B6B64;
 
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --color-gradient-start: #1B6B50;
+  --color-gradient-end: #2E9E76;
+
+  --color-success: #1FAE6E;
+  --color-success-light: #E6F8EE;
+  --color-warning: #E89A0A;
+  --color-warning-light: #FEF4E3;
+  --color-danger: #E5484D;
+  --color-danger-light: #FCEAEB;
+
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   --font-display: 'Plus Jakarta Sans', 'Inter', sans-serif;
 
-  --radius-2xl: 1rem;
+  --radius-2xl: 1.125rem;
   --radius-3xl: 1.5rem;
 
-  --shadow-card: 0 1px 3px 0 rgba(0,0,0,0.07), 0 1px 2px -1px rgba(0,0,0,0.07);
-  --shadow-card-hover: 0 4px 16px 0 rgba(0,0,0,0.10), 0 1px 4px -1px rgba(0,0,0,0.08);
-  --shadow-brand: 0 4px 14px 0 rgba(11,125,232,0.25);
+  --shadow-card: 0 1px 3px 0 rgba(18,36,29,0.07), 0 1px 2px -1px rgba(18,36,29,0.07);
+  --shadow-card-hover: 0 4px 16px 0 rgba(18,36,29,0.10), 0 1px 4px -1px rgba(18,36,29,0.08);
+  --shadow-brand: 0 4px 14px 0 rgba(31,122,92,0.25);
 }
 
 @layer base {
@@ -71,3 +82,14 @@ html, body {
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, rgba(226, 232, 240, 0.6) 25%, rgba(248, 250, 252, 0.95) 50%, rgba(226, 232, 240, 0.6) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite linear;
+}

@@ -59,7 +59,11 @@ export const categoriesApi = {
 export const servicesApi = {
   getAll: (categoryId?: string) => api.get('/services', { params: { categoryId } }),
   getPopular: () => api.get('/services/popular'),
+  getDeals: () => api.get('/services/deals'),
+  getRecentViews: () => api.get('/services/recent-views'),
+  trackView: (id: string) => api.post(`/services/${id}/view`),
   getOne: (id: string) => api.get(`/services/${id}`),
+  getReviews: (id: string, page = 1, limit = 10) => api.get(`/services/${id}/reviews`, { params: { page, limit } }),
 };
 
 // Workers
@@ -68,14 +72,29 @@ export const workersApi = {
     api.get('/workers/nearby', { params: { lat, lng, serviceId } }),
   getOne: (id: string) => api.get(`/workers/${id}`),
   getReviews: (id: string, page = 1, limit = 10) => api.get(`/workers/${id}/reviews`, { params: { page, limit } }),
+  // Per-slot availability heatmap (FREE/BOOKED/UNAVAILABLE + decline risk) for a worker on a given date.
+  getAvailabilitySlots: (id: string, date: string) => api.get(`/workers/${id}/availability-slots`, { params: { date } }),
 };
 
 // Bookings
 export const bookingsApi = {
   create: (data: any) => api.post('/bookings', data),
+  // Server-side price preview (tax, coupon/subscription discount, subscription upsell) — mirrors create()'s pricing exactly.
+  preview: (data: any) => api.post('/bookings/preview', data),
   getMy: (status?: string) => api.get('/bookings/my', { params: { status } }),
   getOne: (id: string) => api.get(`/bookings/${id}`),
-  cancel: (id: string, reason: string) => api.put(`/bookings/${id}/cancel`, { reason }),
+  cancel: (id: string, reason: string, refundTo?: 'ORIGINAL' | 'WALLET') =>
+    api.put(`/bookings/${id}/cancel`, { reason, refundTo }),
+  reschedule: (id: string, scheduledDate: string, scheduledTime: string) =>
+    api.put(`/bookings/${id}/reschedule`, { scheduledDate, scheduledTime }),
+  respondToReschedule: (id: string, accept: boolean) =>
+    api.put(`/bookings/${id}/reschedule/respond`, { accept }),
+  respondToExtraCharge: (requestId: string, approve: boolean) =>
+    api.post(`/bookings/extra-charge/${requestId}/respond`, { approve }),
+  respondToExtraTime: (requestId: string, approve: boolean) =>
+    api.post(`/bookings/extra-time/${requestId}/respond`, { approve }),
+  raiseSos: (id: string, body: { latitude?: number; longitude?: number; message?: string }) =>
+    api.post(`/bookings/${id}/sos`, body),
 };
 
 // Reviews
@@ -90,12 +109,17 @@ export const usersApi = {
   getAddresses: () => api.get('/users/addresses'),
   addAddress: (data: any) => api.post('/users/addresses', data),
   deleteAddress: (id: string) => api.delete(`/users/addresses/${id}`),
+  getSavedCards: () => api.get('/users/saved-cards'),
+  deleteSavedCard: (id: string) => api.delete(`/users/saved-cards/${id}`),
 };
 
 // Wallet
 export const walletApi = {
   get: () => api.get('/wallet'),
-  getTransactions: () => api.get('/wallet/transactions'),
+  getTransactions: (page = 1, limit = 20) => api.get('/wallet/transactions', { params: { page, limit } }),
+  createTopupOrder: (amount: number) => api.post('/wallet/create-order', { amount }),
+  verifyTopup: (data: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string; amount: number }) =>
+    api.post('/wallet/verify', data),
 };
 
 // Notifications
@@ -129,6 +153,17 @@ export const paymentsApi = {
   payCash: (bookingId: string) => api.post(`/payments/cash/${bookingId}`),
   payFromWallet: (bookingId: string) => api.post(`/payments/wallet/${bookingId}`),
   getDetails: (bookingId: string) => api.get(`/payments/${bookingId}`),
+  getPaymentHistory: (page = 1, limit = 20) => api.get('/payments/history/mine', { params: { page, limit } }),
+  getRefundHistory: (page = 1, limit = 20) => api.get('/payments/refunds/mine', { params: { page, limit } }),
+  previewCancellation: (bookingId: string) => api.get(`/payments/cancellation-preview/${bookingId}`),
+  createExtraChargeOrder: (extraChargeRequestId: string) =>
+    api.post(`/payments/extra-charge/${extraChargeRequestId}/create-order`),
+  verifyExtraChargePayment: (data: { extraChargeRequestId: string; razorpayPaymentId: string; razorpaySignature: string }) =>
+    api.post('/payments/extra-charge/verify', data),
+  createExtraTimeOrder: (extraTimeRequestId: string) =>
+    api.post(`/payments/extra-time/${extraTimeRequestId}/create-order`),
+  verifyExtraTimePayment: (data: { extraTimeRequestId: string; razorpayPaymentId: string; razorpaySignature: string }) =>
+    api.post('/payments/extra-time/verify', data),
 };
 
 // Chat
@@ -139,6 +174,15 @@ export const chatApi = {
   sendMessage: (bookingId: string, message: string) =>
     api.post(`/chat/${bookingId}/messages`, { message }),
   getUnreadCount: (bookingId: string) => api.get(`/chat/${bookingId}/unread`),
+
+  // Pre-booking chat — talk to a worker before making a booking.
+  getPreBookingThreads: () => api.get('/chat/prebooking/threads'),
+  getPreBookingMessages: (otherPartyId: string, page = 1, limit = 50) =>
+    api.get(`/chat/prebooking/${otherPartyId}/messages`, { params: { page, limit } }),
+  sendPreBookingMessage: (otherPartyId: string, message: string) =>
+    api.post(`/chat/prebooking/${otherPartyId}/messages`, { message }),
+  getPreBookingUnreadCount: (otherPartyId: string) => api.get(`/chat/prebooking/${otherPartyId}/unread`),
+  markPreBookingRead: (otherPartyId: string) => api.post(`/chat/prebooking/${otherPartyId}/read`),
 };
 
 // Banners
@@ -154,6 +198,23 @@ export const subscriptionsApi = {
   verify: (data: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) =>
     api.post('/subscriptions/verify', data),
   cancel: () => api.post('/subscriptions/cancel'),
+};
+
+// Invoices
+export const invoicesApi = {
+  getAll: (page = 1, limit = 20) => api.get('/invoices', { params: { page, limit } }),
+  getByBooking: (bookingId: string) => api.get(`/invoices/booking/${bookingId}`),
+  getOne: (id: string) => api.get(`/invoices/${id}`),
+  downloadPdf: (id: string) => api.get(`/invoices/${id}/pdf`, { responseType: 'blob' }),
+};
+
+// Disputes
+export const disputesApi = {
+  raise: (data: { bookingId: string; reason: string; description: string; amountClaimed?: number; evidenceUrls?: string[] }) =>
+    api.post('/disputes', data),
+  getMy: (page = 1, limit = 20) => api.get('/disputes/mine', { params: { page, limit } }),
+  getOne: (id: string) => api.get(`/disputes/${id}`),
+  withdraw: (id: string) => api.post(`/disputes/${id}/withdraw`),
 };
 
 // AI Support

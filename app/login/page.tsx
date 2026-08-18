@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth';
 import { signIn, signUp } from '@/lib/auth-client';
 import toast from 'react-hot-toast';
 import { Phone, ShieldCheck, ArrowLeft, Mail, Lock } from 'lucide-react';
+import logo from '@/assets/logo.png';
 
 function LoginContent() {
   const [mode, setMode] = useState<'phone' | 'email'>('phone');
@@ -173,8 +174,8 @@ function LoginContent() {
     <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-accent-50 px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="card p-8">
-          <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center mb-6">
-            <span className="text-white text-sm font-bold">HS</span>
+          <div className="w-12 h-12 rounded-xl overflow-hidden shadow-xs border border-slate-100 flex items-center justify-center mb-6 bg-white">
+            <img src={logo.src} alt="HomeServe" className="w-full h-full object-cover" />
           </div>
 
           {/* Google — always visible regardless of mode */}
@@ -357,7 +358,7 @@ function LoginContent() {
         </p>
         <p className="text-center text-sm text-gray-500 mt-4">
             Want to become a worker?{' '}
-            <a href="https://homeserve-worker-f.onrender.com" className="text-blue-600 font-semibold hover:underline">Worker App →</a>
+            <a href="https://homeserve-worker-f.onrender.com" className="text-brand-600 font-semibold hover:underline">Worker App →</a>
           </p>
       </div>
     </div>

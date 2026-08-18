@@ -12,8 +12,20 @@ const variants: Record<string, string> = {
   OPEN: 'bg-amber-50 text-amber-700 border border-amber-200',
   RESOLVED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
   CLOSED: 'bg-slate-100 text-slate-500 border border-slate-200',
+  RAISED: 'bg-amber-50 text-amber-700 border border-amber-200',
+  UNDER_REVIEW: 'bg-blue-50 text-blue-700 border border-blue-200',
+  ESCALATED: 'bg-purple-50 text-purple-700 border border-purple-200',
+  REJECTED_DISPUTE: 'bg-red-50 text-red-700 border border-red-200',
+  WITHDRAWN: 'bg-slate-100 text-slate-500 border border-slate-200',
+  PAID: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  ISSUED: 'bg-blue-50 text-blue-700 border border-blue-200',
+  VOID: 'bg-slate-100 text-slate-500 border border-slate-200',
 };
-const labels: Record<string, string> = { IN_PROGRESS: 'In Progress' };
+const labels: Record<string, string> = {
+  IN_PROGRESS: 'In Progress',
+  UNDER_REVIEW: 'Under Review',
+  REJECTED_DISPUTE: 'Rejected',
+};
 export default function Badge({ status }: { status: string }) {
   const cls = variants[status] || 'bg-slate-100 text-slate-600 border border-slate-200';
   return <span className={`badge ${cls}`}>{labels[status] || status.charAt(0) + status.slice(1).toLowerCase()}</span>;

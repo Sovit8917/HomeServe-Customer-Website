@@ -3,18 +3,20 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useBookingStore } from '@/store/booking';
 import { useAuthStore } from '@/store/auth';
-import { usersApi, bookingsApi, couponsApi, paymentsApi } from '@/lib/api';
+import { usersApi, bookingsApi, couponsApi, paymentsApi, workersApi } from '@/lib/api';
 import { openRazorpayCheckout } from '@/lib/razorpay';
-import { Address } from '@/types';
+import { Address, AvailabilitySlot } from '@/types';
 import toast from 'react-hot-toast';
 import { format, addDays, isToday } from 'date-fns';
 import {
   Calendar, MapPin, FileText, CreditCard, Plus, Check, ChevronLeft,
-  Smartphone, Wallet, Banknote, Tag, X, Loader2,
+  Smartphone, Wallet, Banknote, Tag, X, Loader2, AlertTriangle,
 } from 'lucide-react';
 import AddressFormModal from '@/components/booking/AddressFormModal';
 
-const TIME_SLOTS = ['08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM', '06:00 PM'];
+// Fallback slot list, used only when no specific worker is selected yet
+// (the real per-worker availability heatmap needs a workerId + date).
+const FALLBACK_TIME_SLOTS = ['08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'];
 
 export default function CheckoutPage() {
   const { serviceId } = useParams<{ serviceId: string }>();
@@ -31,9 +33,16 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'CARD' | 'WALLET' | 'CASH'>('CASH');
   const [couponCode, setCouponCode] = useState('');
   const [appliedCouponId, setAppliedCouponId] = useState<string | null>(null);
-  const [discount, setDiscount] = useState(0);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Dynamic per-worker slot availability (heatmap: FREE / BOOKED / UNAVAILABLE + decline risk)
+  const [slots, setSlots] = useState<AvailabilitySlot[] | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  // Server-side computed price — the source of truth for what's actually charged.
+  const [pricePreview, setPricePreview] = useState<{ totalAmount: number; discountAmount: number; taxAmount: number; finalAmount: number } | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
     if (!user) { router.push('/login'); return; }
@@ -48,10 +57,54 @@ export default function CheckoutPage() {
 
   if (!draft.service) return null;
   const service = draft.service;
-  const subtotal = service.basePrice;
-  const total = Math.max(subtotal - discount, 0);
 
   const next7Days = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i));
+  const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+  // Load the real per-slot availability whenever a specific worker + date is in play.
+  // With no preferred worker chosen, there's no single heatmap to show — fall back to the static list.
+  useEffect(() => {
+    if (!draft.workerId) { setSlots(null); return; }
+    setLoadingSlots(true);
+    workersApi.getAvailabilitySlots(draft.workerId, dateStr)
+      .then((res) => {
+        const data = res.data.data || res.data;
+        setSlots(data?.slots || []);
+        // If the previously-selected time is no longer free on the new date, clear it.
+        setSelectedTime((prev) => {
+          const stillFree = (data?.slots || []).find((s: AvailabilitySlot) => s.time === prev && s.status === 'FREE');
+          return stillFree ? prev : '';
+        });
+      })
+      .catch(() => setSlots(null))
+      .finally(() => setLoadingSlots(false));
+  }, [draft.workerId, dateStr]);
+
+  // Re-fetch the server-computed price whenever anything that affects it changes.
+  useEffect(() => {
+    if (!selectedTime) { setPricePreview(null); return; }
+    let cancelled = false;
+    setLoadingPreview(true);
+    bookingsApi.preview({
+      items: [{ serviceId: service.id, quantity: 1 }],
+      scheduledDate: dateStr,
+      scheduledTime: selectedTime,
+      couponId: appliedCouponId || undefined,
+    }).then((res) => {
+      if (cancelled) return;
+      const data = res.data.data || res.data;
+      setPricePreview(data);
+    }).catch(() => { if (!cancelled) setPricePreview(null); })
+      .finally(() => { if (!cancelled) setLoadingPreview(false); });
+    return () => { cancelled = true; };
+  }, [service.id, dateStr, selectedTime, appliedCouponId]);
+
+  const subtotal = pricePreview?.totalAmount ?? service.basePrice;
+  const discount = pricePreview?.discountAmount ?? 0;
+  const taxAmount = pricePreview?.taxAmount ?? 0;
+  const total = pricePreview?.finalAmount ?? Math.max(subtotal - discount, 0);
+
+  const availableSlots = slots ?? FALLBACK_TIME_SLOTS.map((time) => ({ time, status: 'FREE' as const, declineRisk: 'LOW' as const }));
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -59,12 +112,10 @@ export default function CheckoutPage() {
     try {
       const res = await couponsApi.validate(couponCode, subtotal);
       const data = res.data.data || res.data;
-      setDiscount(data.discount || 0);
       setAppliedCouponId(data.coupon?.id || null);
       toast.success(`Coupon applied! ₹${data.discount} off`);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Invalid coupon code');
-      setDiscount(0);
       setAppliedCouponId(null);
     } finally {
       setApplyingCoupon(false);
@@ -76,14 +127,14 @@ export default function CheckoutPage() {
     if (!selectedTime) return toast.error('Please select a time slot');
     setSubmitting(true);
     try {
-      const preferredWorkerNote = draft.workerId ? `[Preferred professional ID: ${draft.workerId}] ` : '';
       const res = await bookingsApi.create({
         items: [{ serviceId: service.id, quantity: 1 }],
         addressId: selectedAddressId,
-        scheduledDate: format(selectedDate, 'yyyy-MM-dd'),
+        scheduledDate: dateStr,
         scheduledTime: selectedTime,
-        description: preferredWorkerNote + notes,
+        description: notes,
         couponId: appliedCouponId || undefined,
+        preferredWorkerId: draft.workerId || undefined,
       });
       const booking = res.data.data || res.data;
 
@@ -172,14 +223,39 @@ export default function CheckoutPage() {
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-          {TIME_SLOTS.map((t) => (
-            <button key={t} onClick={() => setSelectedTime(t)}
-              className={`py-2 px-2 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${selectedTime === t ? 'bg-brand-500 border-brand-500 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-brand-300'}`}>
-              {t}
-            </button>
-          ))}
-        </div>
+        {loadingSlots ? (
+          <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-brand-400" /></div>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+            {availableSlots.map((s) => {
+              const disabled = s.status !== 'FREE';
+              const selected = selectedTime === s.time;
+              return (
+                <button key={s.time} onClick={() => !disabled && setSelectedTime(s.time)} disabled={disabled}
+                  title={s.status === 'BOOKED' ? 'Already booked' : s.status === 'UNAVAILABLE' ? 'Outside working hours' : s.declineRisk !== 'LOW' ? 'This professional often declines this time slot' : undefined}
+                  className={`relative py-2 px-2 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
+                    disabled
+                      ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed line-through'
+                      : selected
+                        ? 'bg-brand-500 border-brand-500 text-white'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-brand-300'
+                  }`}>
+                  {s.time}
+                  {!disabled && s.declineRisk !== 'LOW' && (
+                    <span className={`absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${s.declineRisk === 'HIGH' ? 'bg-red-400' : 'bg-amber-400'}`}>
+                      <AlertTriangle className="h-2 w-2 text-white" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {draft.workerId && slots && slots.some((s) => s.declineRisk !== 'LOW' && s.status === 'FREE') && (
+          <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" /> Slots marked with a dot are ones this professional has often declined recently.
+          </p>
+        )}
       </section>
 
       {/* Address */}
@@ -230,7 +306,7 @@ export default function CheckoutPage() {
         {discount > 0 && (
           <div className="flex items-center justify-between mt-2 text-sm text-emerald-600 font-medium">
             <span>Coupon applied</span>
-            <button onClick={() => { setDiscount(0); setCouponCode(''); setAppliedCouponId(null); }} className="flex items-center gap-1 text-slate-400 hover:text-slate-600">
+            <button onClick={() => { setCouponCode(''); setAppliedCouponId(null); }} className="flex items-center gap-1 text-slate-400 hover:text-slate-600">
               <X className="h-3.5 w-3.5" /> Remove
             </button>
           </div>
@@ -260,20 +336,31 @@ export default function CheckoutPage() {
 
       {/* Price summary */}
       <section className="card p-5">
-        <h2 className="font-semibold text-slate-800 mb-3">Price details</h2>
+        <h2 className="flex items-center gap-2 font-semibold text-slate-800 mb-3">
+          Price details
+          {loadingPreview && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-300" />}
+        </h2>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between text-slate-600">
             <span>Service charge</span><span>₹{subtotal}</span>
           </div>
           {discount > 0 && (
             <div className="flex justify-between text-emerald-600">
-              <span>Coupon discount</span><span>−₹{discount}</span>
+              <span>Discount</span><span>−₹{discount}</span>
+            </div>
+          )}
+          {taxAmount > 0 && (
+            <div className="flex justify-between text-slate-600">
+              <span>Taxes &amp; fees</span><span>₹{taxAmount}</span>
             </div>
           )}
           <div className="flex justify-between font-bold text-slate-900 text-base pt-2 border-t border-slate-100">
             <span>Total</span><span>₹{total}</span>
           </div>
         </div>
+        {!selectedTime && (
+          <p className="text-xs text-slate-400 mt-2">Pick a time slot to see the final price, including tax.</p>
+        )}
       </section>
 
       {/* Sticky bottom bar */}

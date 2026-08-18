@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AppChrome>{children}</AppChrome>
         <Toaster position="top-right" toastOptions={{
           style: { borderRadius: '12px', fontFamily: 'Inter, sans-serif', fontSize: '14px' },
-          success: { iconTheme: { primary: '#0b7de8', secondary: '#fff' } }
+          success: { iconTheme: { primary: '#1F7A5C', secondary: '#fff' } }
         }} />
       </body>
     </html>

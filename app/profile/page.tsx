@@ -11,6 +11,7 @@ import { format, parseISO } from 'date-fns';
 import {
   User, MapPin, Wallet, HelpCircle, FileText, Shield, LogOut,
   ChevronRight, Plus, Trash2, Edit2, Check, X, Camera, Loader2,
+  Receipt, ShieldAlert, CreditCard, Heart,
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -85,7 +86,12 @@ export default function ProfilePage() {
   };
 
   const menuItems = [
-    { icon: Wallet, label: 'Wallet', sub: wallet ? `₹${wallet.balance} balance` : '', href: '/profile#wallet' },
+    { icon: Wallet, label: 'Wallet', sub: wallet ? `₹${wallet.balance} balance` : '', href: '/wallet' },
+    { icon: CreditCard, label: 'Saved Cards', href: '/profile/cards' },
+    { icon: Heart, label: 'Favorites', href: '/favorites' },
+    { icon: CreditCard, label: 'Payments & Refunds', href: '/payments' },
+    { icon: Receipt, label: 'Invoices & Receipts', href: '/invoices' },
+    { icon: ShieldAlert, label: 'My Disputes', href: '/disputes' },
     { icon: HelpCircle, label: 'Help & Support', href: '/support' },
     { icon: FileText, label: 'Terms of Service', href: '/terms' },
     { icon: Shield, label: 'Privacy Policy', href: '/privacy' },
