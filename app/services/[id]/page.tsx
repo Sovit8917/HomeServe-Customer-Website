@@ -7,12 +7,17 @@ import { useAuthStore } from '@/store/auth';
 import { Service, Worker, ServiceReview } from '@/types';
 import Spinner from '@/components/ui/Spinner';
 import WorkerCard from '@/components/services/WorkerCard';
+import ServiceCard from '@/components/services/ServiceCard';
+import ServiceGallery from '@/components/services/ServiceGallery';
+import ServiceInclusionsExclusions from '@/components/services/ServiceInclusionsExclusions';
 import EmptyState from '@/components/ui/EmptyState';
 import StarRating from '@/components/ui/StarRating';
 import Avatar from '@/components/ui/Avatar';
-import { Clock, ShieldCheck, ChevronLeft, Users, Sparkles, Star } from 'lucide-react';
+import { Clock, ShieldCheck, ChevronLeft, Users, Sparkles, Star, ShoppingCart } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, parseISO } from 'date-fns';
+import { cartApi } from '@/lib/api';
+import { useCartStore } from '@/store/cart';
 
 export default function ServiceDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -24,8 +29,11 @@ export default function ServiceDetailsPage() {
   const [workersLoading, setWorkersLoading] = useState(true);
   const [reviews, setReviews] = useState<ServiceReview[]>([]);
   const [reviewStats, setReviewStats] = useState<{ averageRating: number; totalReviews: number } | null>(null);
+  const [relatedServices, setRelatedServices] = useState<Service[]>([]);
   const setDraft = useBookingStore((s) => s.setDraft);
   const { user } = useAuthStore();
+  const refreshCartBadge = useCartStore((s) => s.refresh);
+  const [addingToCart, setAddingToCart] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -38,6 +46,13 @@ export default function ServiceDetailsPage() {
       const payload = res.data.data || res.data || {};
       setReviews(payload.reviews || []);
       setReviewStats({ averageRating: payload.averageRating || 0, totalReviews: payload.totalReviews || 0 });
+    }).catch(() => {});
+
+    // "You might also like" — same-category picks first, backfilled with
+    // popular catalog items if the category is thin.
+    setRelatedServices([]);
+    servicesApi.getRelated(id).then((res) => {
+      setRelatedServices(res.data.data || res.data || []);
     }).catch(() => {});
   }, [id]);
 
@@ -87,6 +102,25 @@ export default function ServiceDetailsPage() {
     router.push(`/checkout/${service.id}`);
   };
 
+  const handleAddToCart = async () => {
+    if (!service) return;
+    if (!user) {
+      toast('Please sign in to continue', { icon: '🔒' });
+      router.push('/login');
+      return;
+    }
+    setAddingToCart(true);
+    try {
+      await cartApi.addItem(service.id, 1);
+      await refreshCartBadge();
+      toast.success('Added to cart');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Could not add to cart');
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-24"><Spinner size="lg" /></div>;
   if (!service) return <EmptyState icon={Users} title="Service not found" />;
 
@@ -126,6 +160,12 @@ export default function ServiceDetailsPage() {
         </div>
       </div>
 
+      {/* Photo/video gallery — renders nothing if the admin hasn't set any */}
+      <ServiceGallery images={service.images || []} videoUrl={service.videoUrl} />
+
+      {/* What's Included & What's Not Included */}
+      <ServiceInclusionsExclusions service={service} />
+
       {/* Service reviews */}
       {reviewStats && reviewStats.totalReviews > 0 && (
         <div className="card p-5 sm:p-6 mb-6">
@@ -151,6 +191,16 @@ export default function ServiceDetailsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* You might also like */}
+      {relatedServices.length > 0 && (
+        <div className="mb-6">
+          <h2 className="section-title mb-4">You might also like</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+            {relatedServices.map((s) => <ServiceCard key={s.id} service={s} />)}
           </div>
         </div>
       )}
@@ -185,8 +235,15 @@ export default function ServiceDetailsPage() {
       </div>
 
       {/* Sticky CTA */}
-      <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-100 -mx-4 px-4 sm:mx-0 sm:px-0 sm:bg-transparent sm:border-0 sm:static py-4">
-        <button onClick={handleContinue} className="btn-primary w-full justify-center flex items-center text-base py-3.5">
+      <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-100 -mx-4 px-4 sm:mx-0 sm:px-0 sm:bg-transparent sm:border-0 sm:static py-4 flex gap-3">
+        <button
+          onClick={handleAddToCart}
+          disabled={addingToCart}
+          className="btn-secondary flex items-center justify-center gap-2 px-5 py-3.5 disabled:opacity-60"
+        >
+          <ShoppingCart className="h-4.5 w-4.5" /> {addingToCart ? 'Adding...' : 'Add to cart'}
+        </button>
+        <button onClick={handleContinue} className="btn-primary flex-1 justify-center flex items-center text-base py-3.5">
           Continue to booking
         </button>
       </div>

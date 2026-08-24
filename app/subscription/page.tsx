@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { subscriptionsApi } from '@/lib/api';
 import { openRazorpayCheckout } from '@/lib/razorpay';
 import { useAuthStore } from '@/store/auth';
@@ -9,8 +9,12 @@ import Spinner from '@/components/ui/Spinner';
 import { CheckCircle2, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export default function SubscriptionPlansPage() {
+function SubscriptionPlansContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Set when arriving from the checkout upsell banner for a specific
+  // plan — highlights that card so it's obvious which one was suggested.
+  const highlightPlanId = searchParams.get('plan');
   const user = useAuthStore((s) => s.user);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [mySub, setMySub] = useState<UserSubscription | null>(null);
@@ -95,12 +99,16 @@ export default function SubscriptionPlansPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {plans.map((plan) => {
             const isCurrentPlan = mySub?.planId === plan.id && hasActivePlan;
+            const isHighlighted = highlightPlanId === plan.id;
             return (
-              <div key={plan.id} className="card overflow-hidden flex flex-col">
+              <div key={plan.id} className={`card overflow-hidden flex flex-col ${isHighlighted ? 'ring-2 ring-amber-400' : ''}`}>
                 <div className="bg-gradient-to-br from-brand-500 to-brand-700 p-6 text-white">
                   <div className="flex items-center gap-2 mb-1">
                     <Star className="h-4 w-4" />
                     <span className="font-display font-bold text-lg">{plan.name}</span>
+                    {isHighlighted && (
+                      <span className="ml-auto text-[10px] font-semibold bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full">Suggested</span>
+                    )}
                   </div>
                   {plan.description && <p className="text-brand-50 text-sm">{plan.description}</p>}
                 </div>
@@ -144,5 +152,13 @@ export default function SubscriptionPlansPage() {
         </p>
       )}
     </div>
+  );
+}
+
+export default function SubscriptionPlansPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-24"><Spinner /></div>}>
+      <SubscriptionPlansContent />
+    </Suspense>
   );
 }

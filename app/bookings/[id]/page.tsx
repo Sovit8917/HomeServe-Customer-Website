@@ -16,10 +16,16 @@ import StarRating from '@/components/ui/StarRating';
 import ReviewModal from '@/components/booking/ReviewModal';
 import RescheduleModal from '@/components/booking/RescheduleModal';
 import SosModal from '@/components/booking/SosModal';
+import ShareTrackingModal from '@/components/booking/ShareTrackingModal';
+import StartOtpCard from '@/components/booking/StartOtpCard';
+import ServiceInclusionsExclusions from '@/components/services/ServiceInclusionsExclusions';
+import RunningLateBanner from '@/components/booking/RunningLateBanner';
+import BookingTimelineModal from '@/components/booking/BookingTimelineModal';
+import ExtraChargeApprovalCard from '@/components/booking/ExtraChargeApprovalCard';
 import {
   ChevronLeft, CheckCircle2, MapPin, Calendar, FileText, CreditCard,
   Phone, MessageCircle, XCircle, Star, X, Receipt, ShieldAlert,
-  CalendarClock, Clock, IndianRupee, Loader2, Image as ImageIcon, RotateCcw,
+  CalendarClock, Clock, IndianRupee, Loader2, Image as ImageIcon, RotateCcw, Share2, History,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -46,6 +52,8 @@ function BookingDetailContent() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showSosModal, setShowSosModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [cancelPreview, setCancelPreview] = useState<CancellationPreview | null>(null);
@@ -110,12 +118,22 @@ function BookingDetailContent() {
     }
   };
 
-  const handleRespondExtraCharge = async (requestId: string, approve: boolean) => {
+  const handleRespondExtraCharge = async (requestId: string, approve: boolean, cashCollected?: number) => {
     setRespondingId(requestId);
     try {
-      await bookingsApi.respondToExtraCharge(requestId, approve);
+      const res = await bookingsApi.respondToExtraCharge(requestId, approve, cashCollected);
+      const payNowRequired = (res.data.data || res.data)?.payNowRequired ?? res.data.payNowRequired;
       toast.success(approve ? 'Extra charge approved' : 'Extra charge rejected');
-      load();
+      await load();
+      // Cash split left an online remainder (or a non-cash approval needs
+      // its usual online payment) — send them straight into the pay flow
+      // instead of making them find the "Pay ₹X" card themselves.
+      if (approve && payNowRequired) {
+        const freshRes = await bookingsApi.getOne(id);
+        const fresh = freshRes.data.data || freshRes.data;
+        const req = (fresh.extraCharges || []).find((r: ExtraChargeRequest) => r.id === requestId);
+        if (req) handlePayExtraCharge(req);
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to respond');
     } finally {
@@ -138,13 +156,14 @@ function BookingDetailContent() {
 
   const handlePayExtraCharge = async (req: ExtraChargeRequest) => {
     setPayingId(req.id);
+    const onlineOwed = Math.max(0, req.amount - (req.cashCollected || 0));
     try {
       const orderRes = await paymentsApi.createExtraChargeOrder(req.id);
       const order = orderRes.data.data || orderRes.data;
       await openRazorpayCheckout({
         order,
         name: 'HomeServe',
-        description: req.label,
+        description: req.cashCollected ? `${req.label} (remaining after cash)` : req.label,
         prefill: { name: user?.name, contact: user?.phone },
         onSuccess: async (resp) => {
           try {
@@ -256,7 +275,23 @@ function BookingDetailContent() {
               </div>
             ))}
           </div>
+          <button
+            onClick={() => setShowTimelineModal(true)}
+            className="flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 mt-4 pt-3 border-t border-slate-100 w-full justify-center"
+          >
+            <History className="h-3.5 w-3.5" /> View full timeline
+          </button>
         </div>
+      )}
+
+      {/* Worker running late */}
+      {booking.runningLateAt && ['ACCEPTED', 'IN_PROGRESS'].includes(booking.status) && (
+        <RunningLateBanner at={booking.runningLateAt} reason={booking.runningLateReason} />
+      )}
+
+      {/* Start-job code, shown until the worker starts the job */}
+      {booking.status === 'ACCEPTED' && booking.startOtp && (
+        <StartOtpCard otp={booking.startOtp} />
       )}
 
       {isCancelledOrRejected && booking.cancellationReason && (
@@ -320,9 +355,17 @@ function BookingDetailContent() {
       {/* Live tracking */}
       {['ACCEPTED', 'IN_PROGRESS'].includes(booking.status) && booking.address?.latitude && booking.address?.longitude && (
         <div className="card p-5 mb-4">
-          <h2 className="flex items-center gap-2 font-semibold text-slate-800 mb-3 text-sm">
-            <MapPin className="h-4.5 w-4.5 text-brand-500" /> Live location
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="flex items-center gap-2 font-semibold text-slate-800 text-sm">
+              <MapPin className="h-4.5 w-4.5 text-brand-500" /> Live location
+            </h2>
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 px-2.5 py-1 rounded-lg hover:bg-brand-50 transition-colors"
+            >
+              <Share2 className="h-3.5 w-3.5" /> Share
+            </button>
+          </div>
           <LiveTrackingMap
             bookingId={booking.id}
             workerName={booking.worker?.name}
@@ -330,6 +373,7 @@ function BookingDetailContent() {
             initialWorkerLng={booking.worker?.longitude}
             destinationLat={booking.address.latitude}
             destinationLng={booking.address.longitude}
+            jobStarted={booking.status === 'IN_PROGRESS'}
           />
         </div>
       )}
@@ -405,30 +449,34 @@ function BookingDetailContent() {
               )}
             </div>
           </div>
-          <div className="flex gap-3">
-            <button onClick={() => handleRespondExtraCharge(req.id, false)} disabled={respondingId === req.id}
-              className="btn-secondary flex-1 justify-center flex items-center text-red-600 border-red-200 hover:bg-red-50">
-              Reject
-            </button>
-            <button onClick={() => handleRespondExtraCharge(req.id, true)} disabled={respondingId === req.id}
-              className="btn-primary flex-1 justify-center flex items-center">
-              {respondingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Approve'}
-            </button>
-          </div>
+          <ExtraChargeApprovalCard
+            request={req}
+            isCashBooking={booking.payment?.method === 'CASH'}
+            responding={respondingId === req.id}
+            onReject={() => handleRespondExtraCharge(req.id, false)}
+            onApprove={(cashCollected) => handleRespondExtraCharge(req.id, true, cashCollected)}
+          />
         </div>
       ))}
-      {decidedExtraCharges.filter((r) => r.status === 'APPROVED' && r.paymentStatus === 'PENDING').map((req) => (
+      {decidedExtraCharges.filter((r) => r.status === 'APPROVED' && r.paymentStatus === 'PENDING').map((req) => {
+        const onlineOwed = Math.max(0, req.amount - (req.cashCollected || 0));
+        return (
         <div key={req.id} id={`request-${req.id}`}
           className={`card p-5 mb-4 bg-blue-50 border-blue-200 flex items-center justify-between gap-3 ${highlightRequestId === req.id ? 'ring-2 ring-brand-400' : ''}`}>
           <div>
             <p className="text-sm font-semibold text-blue-900">{req.label}</p>
-            <p className="text-xs text-blue-700">₹{req.amount} approved — payment pending</p>
+            <p className="text-xs text-blue-700">
+              {req.cashCollected
+                ? `₹${req.cashCollected} paid in cash · ₹${onlineOwed} pending online`
+                : `₹${req.amount} approved — payment pending`}
+            </p>
           </div>
           <button onClick={() => handlePayExtraCharge(req)} disabled={payingId === req.id} className="btn-primary flex items-center justify-center flex-shrink-0">
-            {payingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : `Pay ₹${req.amount}`}
+            {payingId === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : `Pay ₹${onlineOwed}`}
           </button>
         </div>
-      ))}
+        );
+      })}
 
       {/* Extra time requests */}
       {pendingExtraTime.map((req) => (
@@ -472,9 +520,16 @@ function BookingDetailContent() {
       {/* Completion proof photos */}
       {hasProofPhotos && (
         <div className="card p-5 mb-4">
-          <h2 className="flex items-center gap-2 font-semibold text-slate-800 mb-3 text-sm">
-            <ImageIcon className="h-4.5 w-4.5 text-brand-500" /> Completion proof
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="flex items-center gap-2 font-semibold text-slate-800 text-sm">
+              <ImageIcon className="h-4.5 w-4.5 text-brand-500" /> Completion proof
+            </h2>
+            {booking.completedAt && (
+              <span className="text-xs text-slate-400">
+                {format(parseISO(booking.completedAt), "MMM d, h:mm a")}
+              </span>
+            )}
+          </div>
           {!!booking.proofBeforePhotos?.length && (
             <div className="mb-3">
               <p className="text-xs text-slate-500 mb-1.5">Before</p>
@@ -500,6 +555,11 @@ function BookingDetailContent() {
             </div>
           )}
         </div>
+      )}
+
+      {/* What's Included & What's Not Included */}
+      {booking.items?.[0]?.service && (
+        <ServiceInclusionsExclusions service={booking.items[0].service} />
       )}
 
       {/* Price summary */}
@@ -601,6 +661,14 @@ function BookingDetailContent() {
 
       {showSosModal && (
         <SosModal bookingId={booking.id} onClose={() => setShowSosModal(false)} onSent={load} />
+      )}
+
+      {showShareModal && (
+        <ShareTrackingModal bookingId={booking.id} onClose={() => setShowShareModal(false)} />
+      )}
+
+      {showTimelineModal && (
+        <BookingTimelineModal bookingId={booking.id} onClose={() => setShowTimelineModal(false)} />
       )}
     </div>
   );

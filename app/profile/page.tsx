@@ -21,6 +21,7 @@ export default function ProfilePage() {
   const [wallet, setWallet] = useState<{ balance: number } | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [showAddressModal, setShowAddressModal] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(user?.name || '');
   const [activeSection, setActiveSection] = useState<'profile' | 'addresses'>('profile');
@@ -155,6 +156,9 @@ export default function ProfilePage() {
                   <p className="font-medium text-sm text-slate-800">{a.label} {a.isDefault && <span className="badge bg-brand-50 text-brand-600 ml-1">Default</span>}</p>
                   <p className="text-xs text-slate-500 truncate">{a.fullAddress}, {a.city}, {a.state} {a.pincode}</p>
                 </div>
+                <button onClick={() => setEditingAddress(a)} className="text-slate-300 hover:text-brand-500 flex-shrink-0">
+                  <Edit2 className="h-4 w-4" />
+                </button>
                 <button onClick={() => handleDeleteAddress(a.id)} className="text-slate-300 hover:text-red-500 flex-shrink-0">
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -212,6 +216,13 @@ export default function ProfilePage() {
 
       {showAddressModal && (
         <AddressFormModal onClose={() => setShowAddressModal(false)} onSaved={(a) => setAddresses((prev) => [...prev, a])} />
+      )}
+      {editingAddress && (
+        <AddressFormModal
+          address={editingAddress}
+          onClose={() => setEditingAddress(null)}
+          onSaved={(a) => setAddresses((prev) => prev.map((x) => (x.id === a.id ? a : x)))}
+        />
       )}
     </div>
   );

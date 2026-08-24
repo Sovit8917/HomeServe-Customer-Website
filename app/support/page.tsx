@@ -8,10 +8,15 @@ import Badge from '@/components/ui/Badge';
 import { LifeBuoy, ChevronDown, Send, Plus, X, ChevronRight } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth';
+
 interface Faq { id: string; question: string; answer: string }
 interface Ticket { id: string; subject: string; description: string; status: string; createdAt: string }
 
 export default function SupportPage() {
+  const user = useAuthStore((s) => s.user);
+  const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +39,10 @@ export default function SupportPage() {
       .finally(() => setLoading(false));
   };
   useEffect(() => {
+    if (!user) {
+      router.push('/login?next=/support');
+      return;
+    }
     load();
     supportApi
       .getFaqs()
@@ -43,7 +52,7 @@ export default function SupportPage() {
         setFaqs(Array.isArray(faqList) ? faqList : []);
       })
       .catch(() => setFaqs([]));
-  }, []);
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

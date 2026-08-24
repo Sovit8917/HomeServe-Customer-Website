@@ -3,16 +3,17 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useBookingStore } from '@/store/booking';
 import { useAuthStore } from '@/store/auth';
-import { usersApi, bookingsApi, couponsApi, paymentsApi, workersApi } from '@/lib/api';
+import { bookingsApi, usersApi, couponsApi, paymentsApi, workersApi, recurringBookingsApi } from '@/lib/api';
 import { openRazorpayCheckout } from '@/lib/razorpay';
 import { Address, AvailabilitySlot } from '@/types';
 import toast from 'react-hot-toast';
 import { format, addDays, isToday } from 'date-fns';
 import {
   Calendar, MapPin, FileText, CreditCard, Plus, Check, ChevronLeft,
-  Smartphone, Wallet, Banknote, Tag, X, Loader2, AlertTriangle,
+  Smartphone, Wallet, Banknote, Tag, X, Loader2, AlertTriangle, Repeat, Sparkles,
 } from 'lucide-react';
 import AddressFormModal from '@/components/booking/AddressFormModal';
+import ServiceInclusionsExclusions from '@/components/services/ServiceInclusionsExclusions';
 
 // Fallback slot list, used only when no specific worker is selected yet
 // (the real per-worker availability heatmap needs a workerId + date).
@@ -30,18 +31,26 @@ export default function CheckoutPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState('');
   const [notes, setNotes] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'CARD' | 'WALLET' | 'CASH'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'CARD' | 'WALLET' | 'CASH'>('UPI');
   const [couponCode, setCouponCode] = useState('');
   const [appliedCouponId, setAppliedCouponId] = useState<string | null>(null);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [makeRecurring, setMakeRecurring] = useState(false);
+  const [recurringFrequency, setRecurringFrequency] = useState<'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'>('WEEKLY');
 
   // Dynamic per-worker slot availability (heatmap: FREE / BOOKED / UNAVAILABLE + decline risk)
   const [slots, setSlots] = useState<AvailabilitySlot[] | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   // Server-side computed price — the source of truth for what's actually charged.
-  const [pricePreview, setPricePreview] = useState<{ totalAmount: number; discountAmount: number; taxAmount: number; finalAmount: number } | null>(null);
+  const [pricePreview, setPricePreview] = useState<{
+    totalAmount: number; discountAmount: number; taxAmount: number; finalAmount: number;
+    subscriptionUpsell?: {
+      planId: string; planName: string; price: number; durationDays: number;
+      discountPercent: number; estimatedSavingsThisOrder: number;
+    } | null;
+  } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
@@ -126,6 +135,29 @@ export default function CheckoutPage() {
     if (!selectedAddressId) return toast.error('Please select an address');
     if (!selectedTime) return toast.error('Please select a time slot');
     setSubmitting(true);
+
+    if (makeRecurring) {
+      try {
+        await recurringBookingsApi.create({
+          items: [{ serviceId: service.id, quantity: 1 }],
+          frequency: recurringFrequency,
+          startDate: dateStr,
+          scheduledTime: selectedTime,
+          addressId: selectedAddressId,
+          description: notes,
+          preferredWorkerId: draft.workerId || undefined,
+        });
+        clearDraft();
+        toast.success('Recurring booking scheduled!');
+        router.push('/recurring-bookings');
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || 'Failed to schedule recurring booking');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     try {
       const res = await bookingsApi.create({
         items: [{ serviceId: service.id, quantity: 1 }],
@@ -291,6 +323,9 @@ export default function CheckoutPage() {
           className="input-field resize-none" rows={3} />
       </section>
 
+      {/* What's Included & What's Not Included */}
+      <ServiceInclusionsExclusions service={service} />
+
       {/* Coupon */}
       <section className="card p-5 mb-4">
         <h2 className="flex items-center gap-2 font-semibold text-slate-800 mb-3">
@@ -313,11 +348,66 @@ export default function CheckoutPage() {
         )}
       </section>
 
+      {/* Recurring */}
+      <section className="card p-5 mb-4">
+        <label className="flex items-center justify-between cursor-pointer">
+          <span className="flex items-center gap-2 font-semibold text-slate-800">
+            <Repeat className="h-4.5 w-4.5 text-brand-500" /> Make this a recurring booking
+          </span>
+          <input type="checkbox" checked={makeRecurring} onChange={(e) => setMakeRecurring(e.target.checked)}
+            className="h-5 w-5 rounded accent-brand-500" />
+        </label>
+        {makeRecurring && (
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <p className="text-xs text-slate-500 mb-2">How often should this repeat, starting from the date selected above?</p>
+            <div className="grid grid-cols-3 gap-2">
+              {([['WEEKLY', 'Weekly'], ['BIWEEKLY', 'Bi-weekly'], ['MONTHLY', 'Monthly']] as const).map(([id, label]) => (
+                <button key={id} onClick={() => setRecurringFrequency(id)}
+                  className={`py-2 px-2 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${recurringFrequency === id ? 'bg-brand-500 border-brand-500 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-brand-300'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-3">Each occurrence is booked and paid for separately (cash on completion) — you can pause, skip, or cancel any time from Recurring Bookings.</p>
+          </div>
+        )}
+      </section>
+
+      {/* Subscription upsell — server only returns this when the customer
+          has no active plan; estimatedSavingsThisOrder is computed against
+          this exact order total, so it's always accurate to what's on screen. */}
+      {pricePreview?.subscriptionUpsell && (
+        <section className="card p-5 mb-4 bg-gradient-to-br from-amber-50 to-brand-50 border-amber-200">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-900">
+                Save ₹{pricePreview.subscriptionUpsell.estimatedSavingsThisOrder.toFixed(0)} on this order with {pricePreview.subscriptionUpsell.planName}
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {pricePreview.subscriptionUpsell.discountPercent}% off every booking for {pricePreview.subscriptionUpsell.durationDays} days — plan costs ₹{pricePreview.subscriptionUpsell.price}
+              </p>
+              <a
+                href={`/subscription?plan=${pricePreview.subscriptionUpsell.planId}`}
+                className="inline-block mt-2 text-xs font-semibold text-brand-600 hover:underline"
+              >
+                View plan →
+              </a>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Payment method */}
       <section className="card p-5 mb-4">
         <h2 className="flex items-center gap-2 font-semibold text-slate-800 mb-4">
           <CreditCard className="h-4.5 w-4.5 text-brand-500" /> Payment method
         </h2>
+        {makeRecurring ? (
+          <p className="text-sm text-slate-500">Recurring bookings are paid per-occurrence (cash on completion), set from the Recurring Bookings page.</p>
+        ) : (
         <div className="grid grid-cols-2 gap-3">
           {[
             { id: 'UPI', label: 'UPI', icon: Smartphone },
@@ -332,6 +422,7 @@ export default function CheckoutPage() {
             </button>
           ))}
         </div>
+        )}
       </section>
 
       {/* Price summary */}
@@ -371,7 +462,7 @@ export default function CheckoutPage() {
             <p className="font-display font-bold text-xl text-slate-900">₹{total}</p>
           </div>
           <button onClick={handleBooking} disabled={submitting} className="btn-primary flex-1 sm:flex-none sm:px-10 justify-center flex items-center py-3">
-            {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Confirm booking'}
+            {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : makeRecurring ? 'Schedule recurring booking' : 'Confirm booking'}
           </button>
         </div>
       </div>
