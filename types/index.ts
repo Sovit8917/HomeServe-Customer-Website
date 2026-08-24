@@ -41,6 +41,8 @@ export interface Service {
   isActive: boolean;
   category?: Category;
   rating?: number;
+  avgRating?: number;
+  averageRating?: number;
   totalReviews?: number;
   viewedAt?: string;
   includedItems?: string[] | string;

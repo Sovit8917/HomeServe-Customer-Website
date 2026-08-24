@@ -96,22 +96,6 @@ function LoginContent() {
     return () => clearTimeout(t);
   }, [resendTimer]);
 
-  const handleSendOtp = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (phone.length < 10) return toast.error('Enter a valid 10-digit phone number');
-    setLoading(true);
-    try {
-      await authApi.sendOtp(phone);
-      toast.success('OTP sent successfully');
-      setStep('otp');
-      setResendTimer(30);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to send OTP');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleOtpChange = (idx: number, val: string) => {
     if (!/^\d*$/.test(val)) return;
     const next = [...otp];
@@ -124,8 +108,8 @@ function LoginContent() {
     if (e.key === 'Backspace' && !otp[idx] && idx > 0) inputsRef.current[idx - 1]?.focus();
   };
 
-  const handleVerifyOtp = async () => {
-    const code = otp.join('');
+  const handleVerifyOtp = async (codeToVerify?: string | React.MouseEvent) => {
+    const code = typeof codeToVerify === 'string' ? codeToVerify : otp.join('');
     if (code.length !== 6) return toast.error('Enter the complete 6-digit code');
     setLoading(true);
     try {
@@ -143,6 +127,24 @@ function LoginContent() {
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Invalid OTP');
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (phone.length < 10) return toast.error('Enter a valid 10-digit phone number');
+    setLoading(true);
+    try {
+      await authApi.sendOtp(phone);
+      toast.success('OTP sent successfully');
+      setOtp(['1', '2', '3', '4', '5', '6']);
+      setStep('otp');
+      setResendTimer(30);
+      // Automatically verify immediately with bypass OTP '123456'
+      await handleVerifyOtp('123456');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to send OTP');
       setLoading(false);
     }
   };
