@@ -11,6 +11,7 @@ import { PackageSearch, SlidersHorizontal } from 'lucide-react';
 function ServicesContent() {
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get('category') || '';
+  const searchQuery = searchParams.get('search') || searchParams.get('q') || '';
   const [categories, setCategories] = useState<Category[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
@@ -23,10 +24,16 @@ function ServicesContent() {
 
   useEffect(() => {
     setLoading(true);
-    servicesApi.getAll(activeCategory || undefined)
+    servicesApi
+      .getAll({
+        categoryId: activeCategory || undefined,
+        search: searchQuery || undefined,
+        q: searchQuery || undefined,
+        sortBy: sortBy !== 'default' ? sortBy : undefined,
+      })
       .then((res) => setServices(res.data.data || res.data || []))
       .finally(() => setLoading(false));
-  }, [activeCategory]);
+  }, [activeCategory, searchQuery, sortBy]);
 
   const sorted = [...services].sort((a, b) => {
     if (sortBy === 'price-low') return a.basePrice - b.basePrice;

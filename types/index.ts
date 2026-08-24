@@ -28,6 +28,11 @@ export interface Service {
   name: string;
   description?: string;
   image?: string;
+  // Extra photos for the Gallery tab (image above is the primary/hero
+  // photo shown on cards) — empty unless an admin has uploaded some.
+  images?: string[];
+  // Optional demo/walkthrough video for the Gallery tab.
+  videoUrl?: string;
   basePrice: number;
   originalPrice?: number;
   discountPercent?: number;
@@ -38,6 +43,66 @@ export interface Service {
   rating?: number;
   totalReviews?: number;
   viewedAt?: string;
+  includedItems?: string[] | string;
+  excludedItems?: string[] | string;
+  includes?: string[] | string;
+  excludes?: string[] | string;
+  included?: string[] | string;
+  excluded?: string[] | string;
+  inclusions?: string[] | string;
+  exclusions?: string[] | string;
+  whatsIncluded?: string[] | string;
+  whatsNotIncluded?: string[] | string;
+}
+
+export interface CartItem {
+  id: string;
+  serviceId: string;
+  quantity: number;
+  available: boolean;
+  price: number;
+  service: Service | null;
+}
+
+export interface Cart {
+  items: CartItem[];
+  itemCount: number;
+  subtotal: number;
+  unavailableCount: number;
+}
+
+export type RecurringFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+
+export interface RecurringBookingItem {
+  serviceId: string;
+  quantity: number;
+}
+
+export interface RecurringBooking {
+  id: string;
+  userId: string;
+  items: RecurringBookingItem[];
+  frequency: RecurringFrequency;
+  scheduledTime: string;
+  nextRunDate: string;
+  isActive: boolean;
+  addressId?: string;
+  description?: string;
+  preferredWorkerId?: string;
+  lastBookingId?: string;
+  lastRunAt?: string;
+  lastRunError?: string;
+  createdAt: string;
+}
+
+export interface FailedPayment {
+  paymentId: string;
+  bookingId: string;
+  bookingNumber: string;
+  amount: number;
+  method: string;
+  failedAt: string;
+  canRetry: boolean;
 }
 
 export interface ServiceReview {
@@ -135,6 +200,32 @@ export interface Booking {
   // Extra charge / extra time requests
   extraCharges?: ExtraChargeRequest[];
   extraTimeRequests?: ExtraTimeRequest[];
+  bookingNumber?: string;
+  // 4-digit code the customer reads out to the worker to start the job.
+  // Only ever present for the customer's own booking, only while relevant.
+  startOtp?: string;
+  startedAt?: string;
+  completedAt?: string;
+  // Set when the worker reports they're running late for this job.
+  runningLateAt?: string;
+  runningLateReason?: string;
+}
+
+export type BookingTimelineEventType =
+  | 'CREATED' | 'WORKER_DECLINED' | 'ACCEPTED' | 'RESCHEDULED'
+  | 'RUNNING_LATE' | 'REASSIGNED_NO_SHOW' | 'STARTED' | 'COMPLETED'
+  | 'CANCELLED' | 'REJECTED';
+
+export interface BookingTimelineEvent {
+  type: BookingTimelineEventType;
+  label: string;
+  at: string;
+}
+
+export interface BookingTimeline {
+  bookingId: string;
+  bookingNumber: string;
+  events: BookingTimelineEvent[];
 }
 
 export type ExtraChargeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -150,6 +241,11 @@ export interface ExtraChargeRequest {
   photos?: string[];
   status: ExtraChargeStatus;
   paymentStatus: ExtraChargePaymentStatus;
+  // How much of `amount` the worker collected in cash on-site (CASH-method
+  // bookings only) — the remainder (amount - cashCollected) is what's
+  // still owed online. 0/undefined means fully online or fully cash,
+  // matching the pre-split behaviour.
+  cashCollected?: number;
   respondedAt?: string;
   paidAt?: string;
   createdAt: string;

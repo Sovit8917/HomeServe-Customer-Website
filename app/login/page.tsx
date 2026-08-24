@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
-import { signIn, signUp } from '@/lib/auth-client';
+import { signInWithGooglePopup } from '@/lib/firebase';
 import toast from 'react-hot-toast';
 import { Phone, ShieldCheck, ArrowLeft, Mail, Lock } from 'lucide-react';
 import logo from '@/assets/logo.png';
@@ -24,31 +24,23 @@ function LoginContent() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const user = useAuthStore((s) => s.user);
 
-  // After Better Auth confirms a session (Google or email/password), swap
-  // it for a NestJS JWT via the bridge route so the rest of the site
-  // keeps working exactly like the phone-OTP flow (same setAuth call).
-  const completeWithBackendToken = async () => {
-    const res = await fetch('/api/auth/backend-token', { method: 'POST' });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body?.message || 'Could not complete sign-in');
-    const { user, token } = body.data;
-    setAuth(user, token);
-    return { user, isNew: false };
-  };
-
+  // Same flow as the mobile app: get a Firebase ID token from Google,
+  // send it to the backend's /auth/google, and it verifies the token and
+  // returns a NestJS JWT directly (see AuthService.googleMobileLogin) —
+  // no separate database, no bridge, same User table as OTP login.
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      await signIn.social({
-        provider: 'google',
-        callbackURL: `/login/complete${
-          searchParams.get('next') ? `?next=${encodeURIComponent(searchParams.get('next')!)}` : ''
-        }`,
-      });
-      // signIn.social redirects the browser to Google — code after this
-      // line won't run for this request.
+      const idToken = await signInWithGooglePopup();
+      const res = await authApi.googleLogin(idToken);
+      const { user, accessToken, token } = res.data.data || res.data;
+      setAuth(user, accessToken || token);
+      toast.success(`Welcome${user.name ? `, ${user.name}` : ''}!`);
+      const next = searchParams.get('next');
+      router.push(next && next !== '/login' ? next : '/');
     } catch (err: any) {
-      toast.error(err?.message || 'Google sign-in failed');
+      toast.error(err?.response?.data?.message || err?.message || 'Google sign-in failed');
+    } finally {
       setGoogleLoading(false);
     }
   };
@@ -60,40 +52,25 @@ function LoginContent() {
     }
     setLoading(true);
     try {
-      if (emailMode === 'signup') {
-        if (!emailForm.name.trim()) {
-          setLoading(false);
-          return toast.error('Enter your name');
-        }
-        const { error } = await signUp.email({
-          email: emailForm.email,
-          password: emailForm.password,
-          name: emailForm.name,
-        });
-        if (error) throw new Error(error.message);
-      } else {
-        const { error } = await signIn.email({
-          email: emailForm.email,
-          password: emailForm.password,
-        });
-        if (error) throw new Error(error.message);
-      }
+      // Same two endpoints the mobile app calls directly — NestJS issues
+      // the JWT itself, no Better Auth / Prisma / bridge in between.
+      const res = emailMode === 'signup'
+        ? await (async () => {
+            if (!emailForm.name.trim()) throw new Error('Enter your name');
+            return authApi.emailRegister(emailForm.email, emailForm.password, emailForm.name);
+          })()
+        : await authApi.emailLogin(emailForm.email, emailForm.password);
 
-      const { user: loggedInUser } = await completeWithBackendToken();
+      const { user: loggedInUser, accessToken, token } = res.data.data || res.data;
+      setAuth(loggedInUser, accessToken || token);
       toast.success(`Welcome${loggedInUser.name ? `, ${loggedInUser.name}` : ''}!`);
       const next = searchParams.get('next');
       router.push(next && next !== '/login' ? next : '/');
     } catch (err: any) {
-      const message = err?.message || 'Authentication failed';
+      const message = err?.response?.data?.message || err?.message || 'Authentication failed';
       const alreadyExists = /already exists|already registered|user exists/i.test(message);
       if (emailMode === 'signup' && alreadyExists) {
-        toast.error(
-          <span>
-            This email is already registered.{' '}
-            <a href="/forgot-password" className="underline font-medium">Reset your password?</a>
-          </span>,
-          { duration: 6000 },
-        );
+        toast.error('This email is already registered. Try signing in instead.', { duration: 6000 });
       } else {
         toast.error(message);
       }
@@ -265,13 +242,6 @@ function LoginContent() {
                     />
                   </div>
                 </div>
-                {emailMode === 'signin' && (
-                  <div className="text-right -mt-2">
-                    <a href="/forgot-password" className="text-xs text-brand-600 hover:underline font-medium">
-                      Forgot password?
-                    </a>
-                  </div>
-                )}
                 <button type="submit" disabled={loading} className="btn-primary w-full justify-center flex items-center">
                   {loading ? 'Please wait...' : emailMode === 'signup' ? 'Create account' : 'Sign in'}
                 </button>

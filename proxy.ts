@@ -1,11 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Routes that must stay reachable WITHOUT being logged in.
-// NOTE: '/login' uses a prefix check below (not just an exact match) so it
-// also covers '/login/complete' — the page Google OAuth redirects back to.
-// Without that, this proxy would bounce the browser back to /login before
-// /login/complete's own code ever runs to finish signing the user in.
-const PUBLIC_PREFIXES = ['/login', '/forgot-password', '/reset-password'];
+// Routes that require authentication (booking, checkout, account management, etc.).
+// All other browsing routes (home /, /services, /search, /deals, /support, /privacy, /terms, etc.)
+// remain publicly accessible without logging in.
+const PROTECTED_PREFIXES = [
+  '/checkout',
+  '/cart',
+  '/bookings',
+  '/profile',
+  '/wallet',
+  '/chat',
+  '/notifications',
+  '/disputes',
+  '/invoices',
+  '/favorites',
+  '/payments',
+  '/recurring-bookings',
+  '/onboarding',
+  '/subscription/my',
+  '/support',
+];
 
 // Static/next-internal paths that should never be gated.
 function isAssetPath(pathname: string) {
@@ -20,7 +34,8 @@ function isAssetPath(pathname: string) {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isAssetPath(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
+  // Allow static assets, next internal files, and public browsing routes
+  if (isAssetPath(pathname) || !PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 

@@ -2,16 +2,25 @@
 import { usePathname } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
+import PushNotificationManager from '@/components/notifications/PushNotificationManager';
 
 // Pages that are their own full-screen flow and shouldn't show the app chrome.
-const CHROMELESS_PATHS = ['/login', '/onboarding'];
+// '/track' is the public booking-share link — a standalone view for someone
+// who was never logged in, so it shouldn't show a Navbar full of
+// authenticated-account links (cart, wallet, profile menu, etc.).
+const CHROMELESS_PATHS = ['/login', '/onboarding', '/track'];
 
 export default function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isChromeless = CHROMELESS_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   if (isChromeless) {
-    return <main className="min-h-screen">{children}</main>;
+    return (
+      <main className="min-h-screen">
+        <PushNotificationManager />
+        {children}
+      </main>
+    );
   }
 
   return (
@@ -19,6 +28,7 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
       <Navbar />
       <main className="min-h-screen">{children}</main>
       <Footer />
+      <PushNotificationManager />
     </>
   );
 }

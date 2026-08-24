@@ -6,19 +6,20 @@ import { Address } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import toast from 'react-hot-toast';
 
-export default function AddressFormModal({ onClose, onSaved }: { onClose: () => void; onSaved: (a: Address) => void }) {
+export default function AddressFormModal({ address, onClose, onSaved }: { address?: Address; onClose: () => void; onSaved: (a: Address) => void }) {
   const user = useAuthStore((s) => s.user);
-  const needsContactPhone = !user?.phone;
+  const isEditing = !!address;
+  const needsContactPhone = !isEditing && !user?.phone;
   const [form, setForm] = useState({
-    label: 'Home',
-    fullAddress: '',
-    landmark: '',
-    city: '',
-    state: '',
-    pincode: '',
-    latitude: undefined as number | undefined,
-    longitude: undefined as number | undefined,
-    contactPhone: '',
+    label: address?.label || 'Home',
+    fullAddress: address?.fullAddress || '',
+    landmark: address?.landmark || '',
+    city: address?.city || '',
+    state: address?.state || '',
+    pincode: address?.pincode || '',
+    latitude: address?.latitude as number | undefined,
+    longitude: address?.longitude as number | undefined,
+    contactPhone: address?.contactPhone || '',
   });
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -73,9 +74,11 @@ export default function AddressFormModal({ onClose, onSaved }: { onClose: () => 
     }
     setLoading(true);
     try {
-      const res = await usersApi.addAddress(form);
+      const res = isEditing
+        ? await usersApi.updateAddress(address!.id, form)
+        : await usersApi.addAddress(form);
       onSaved(res.data.data || res.data);
-      toast.success('Address saved');
+      toast.success(isEditing ? 'Address updated' : 'Address saved');
       onClose();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to save address');
@@ -88,7 +91,7 @@ export default function AddressFormModal({ onClose, onSaved }: { onClose: () => 
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white flex items-center justify-between p-5 border-b border-slate-100">
-          <h2 className="font-display font-bold text-lg text-slate-900">Add new address</h2>
+          <h2 className="font-display font-bold text-lg text-slate-900">{isEditing ? 'Edit address' : 'Add new address'}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="h-5 w-5 text-slate-500" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
@@ -161,7 +164,7 @@ export default function AddressFormModal({ onClose, onSaved }: { onClose: () => 
             />
           </div>
           <button type="submit" disabled={loading} className="btn-primary w-full justify-center flex items-center">
-            {loading ? 'Saving...' : 'Save address'}
+            {loading ? 'Saving...' : isEditing ? 'Save changes' : 'Save address'}
           </button>
         </form>
       </div>

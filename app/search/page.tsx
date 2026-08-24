@@ -11,20 +11,35 @@ import { Search as SearchIcon, PackageSearch } from 'lucide-react';
 function SearchContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [query, setQuery] = useState(searchParams.get('q') || '');
-  const [allServices, setAllServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
+  const urlParam = searchParams.get('q') || searchParams.get('search') || '';
+  const [query, setQuery] = useState(urlParam);
+  const [results, setResults] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    servicesApi.getAll().then((res) => setAllServices(res.data.data || res.data || [])).finally(() => setLoading(false));
-  }, []);
-
-  const results = query.trim()
-    ? allServices.filter((s) =>
-        s.name.toLowerCase().includes(query.toLowerCase()) ||
-        s.description?.toLowerCase().includes(query.toLowerCase()) ||
-        s.category?.name.toLowerCase().includes(query.toLowerCase()))
-    : [];
+    setQuery(urlParam);
+    if (!urlParam.trim()) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    servicesApi
+      .getAll({ search: urlParam.trim(), q: urlParam.trim() })
+      .then((res) => {
+        const data = res.data.data || res.data || [];
+        // Server-side filter response, fallback client filter if backend returns full catalog
+        const filtered = data.filter((s: Service) =>
+          !urlParam.trim() ||
+          s.name.toLowerCase().includes(urlParam.toLowerCase()) ||
+          s.description?.toLowerCase().includes(urlParam.toLowerCase()) ||
+          s.category?.name.toLowerCase().includes(urlParam.toLowerCase())
+        );
+        setResults(filtered);
+      })
+      .catch(() => setResults([]))
+      .finally(() => setLoading(false));
+  }, [urlParam]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
