@@ -161,17 +161,17 @@ export default function BannerCarousel({
 
       {/* Smooth Indicator Dots */}
       {total > 1 && (
-        <div className="flex justify-center items-center gap-1.5 pt-1">
+        <div className="flex justify-center items-center gap-2 pt-2">
           {bannerList.map((_, i) => (
             <button
               key={i}
               type="button"
               onClick={() => setActiveIndex(i)}
               aria-label={`Go to banner ${i + 1}`}
-              className={`h-2 rounded-full transition-all duration-300 ${
+              className={`h-2.5 rounded-full transition-all duration-300 ${
                 i === activeIndex
-                  ? 'w-7 bg-emerald-700 shadow-sm'
-                  : 'w-2 bg-slate-300 hover:bg-slate-400'
+                  ? 'w-9 bg-[#126b4c] shadow-xs'
+                  : 'w-2.5 bg-[#a2d4be] hover:bg-[#126b4c]/60'
               }`}
             />
           ))}

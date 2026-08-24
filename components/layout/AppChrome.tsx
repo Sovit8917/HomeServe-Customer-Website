@@ -2,6 +2,7 @@
 import { usePathname } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
+import BottomNav from '@/components/layout/BottomNav';
 import PushNotificationManager from '@/components/notifications/PushNotificationManager';
 
 // Pages that are their own full-screen flow and shouldn't show the app chrome.
@@ -26,8 +27,9 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen">{children}</main>
+      <main className="min-h-screen pb-16 md:pb-0">{children}</main>
       <Footer />
+      <BottomNav />
       <PushNotificationManager />
     </>
   );
